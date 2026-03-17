@@ -1,0 +1,1795 @@
+/* ============================================
+   IIIF Viewer Styles
+   ============================================
+   Single consolidated stylesheet for all viewer components.
+
+   CUSTOMIZATION:
+   Override variables in iiif-theme.css or in your own CSS:
+
+   :root {
+     --iiif-color-primary: 100, 200, 150;
+     --iiif-panel-bg: rgba(30, 30, 40, 0.9);
+   }
+   ============================================ */
+
+/* Import theme configuration */
+@import './iiif-theme.css';
+
+/* =============================================
+   1. CSS Custom Properties (Internal aliases)
+   ============================================= */
+
+:root {
+  /* Map theme variables to internal shorthand (for backwards compatibility) */
+  --color-primary: var(--iiif-color-primary);
+  --color-danger: var(--iiif-color-danger);
+  --color-success: var(--iiif-color-success);
+  --color-info: var(--iiif-color-info);
+  --color-error: var(--iiif-color-error);
+
+  --panel-bg: var(--iiif-panel-bg);
+  --border-color: var(--iiif-border-color);
+  --border-color-light: var(--iiif-border-light);
+
+  --text-primary: var(--iiif-text-primary);
+  --text-secondary: var(--iiif-text-secondary);
+  --text-muted: var(--iiif-text-muted);
+  --text-dimmed: var(--iiif-text-dimmed);
+  --text-on-hover: var(--iiif-text-hover);
+
+  --hover-bg: var(--iiif-hover-bg);
+  --active-bg: var(--iiif-active-bg);
+  --active-border: var(--iiif-active-border);
+  --focus-border: var(--iiif-focus-color);
+
+  --button-bg: var(--iiif-button-bg);
+  --button-bg-hover: var(--iiif-button-bg-hover);
+  --button-border: var(--iiif-button-border);
+
+  --input-bg: var(--iiif-input-bg);
+  --input-border: var(--iiif-input-border);
+  --input-placeholder: var(--iiif-input-placeholder);
+
+  --link-color: var(--iiif-link-color);
+
+  --scrollbar-thumb: var(--iiif-scrollbar-thumb);
+  --scrollbar-thumb-hover: var(--iiif-scrollbar-thumb-hover);
+
+  --border-radius: var(--iiif-border-radius);
+  --backdrop-filter: blur(var(--iiif-panel-blur));
+  --shadow: var(--iiif-panel-shadow);
+
+  --transition: ease-in-out var(--iiif-transition-duration);
+  --transition-fast: var(--iiif-transition-fast);
+
+  --font-family: var(--iiif-font-family);
+  --font-mono: var(--iiif-font-mono);
+
+  /* --- Responsive Spacing --- */
+  --dock-spacing: clamp(0.5rem, 3vw, 2rem);
+  --panel-min-width: 120px;
+  --panel-max-width: 280px;
+}
+
+/* =============================================
+   2. Base Panel Class (shared by all panels)
+   ============================================= */
+
+.iiif-panel {
+  position: absolute;
+  z-index: 1500;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  backdrop-filter: var(--backdrop-filter);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+  font-family: var(--font-family);
+}
+
+/* Panel Header - shared across all panels */
+.iiif-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-color-light);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  cursor: grab;
+  user-select: none;
+}
+.iiif-panel-header:active {
+  cursor: grabbing;
+}
+.iiif-panel.dragging {
+  opacity: 0.9;
+  z-index: 3000;
+}
+.iiif-panel.dragging .iiif-panel-header {
+  cursor: grabbing;
+}
+
+/* Navigation Bar (zoom/reset buttons) */
+.iiif-navigation-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 1500;
+}
+.iiif-navigation-wrapper.dragging {
+  opacity: 0.9;
+  z-index: 3000;
+}
+.iiif-navigation-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  backdrop-filter: var(--backdrop-filter);
+  box-shadow: var(--shadow);
+}
+.iiif-navigation-drag-handle {
+  width: 24px;
+  align-self: stretch;
+  border-radius: var(--border-radius);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  backdrop-filter: var(--backdrop-filter);
+  box-shadow: var(--shadow);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='14'%3E%3Ccircle cx='3' cy='3' r='1.2' fill='%23888'/%3E%3Ccircle cx='7' cy='3' r='1.2' fill='%23888'/%3E%3Ccircle cx='3' cy='7' r='1.2' fill='%23888'/%3E%3Ccircle cx='7' cy='7' r='1.2' fill='%23888'/%3E%3Ccircle cx='3' cy='11' r='1.2' fill='%23888'/%3E%3Ccircle cx='7' cy='11' r='1.2' fill='%23888'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.iiif-navigation-drag-handle:active {
+  cursor: grabbing;
+}
+.iiif-nav-zoom-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  flex-shrink: 0;
+}
+.iiif-nav-zoom-btn:hover {
+  color: var(--text-on-hover);
+  background: var(--hover-bg);
+}
+
+/* Panel Collapse Button */
+.iiif-panel-collapse {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+.iiif-panel-collapse:hover {
+  color: var(--text-on-hover);
+}
+
+/* Panel Body */
+.iiif-panel-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.iiif-panel-body.collapsed {
+  display: none;
+}
+
+/* Panel Empty State */
+.iiif-panel-empty {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Panel Scrollbar */
+.iiif-panel-body::-webkit-scrollbar { width: 4px; }
+.iiif-panel-body::-webkit-scrollbar-track { background: transparent; }
+.iiif-panel-body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 2px;
+}
+
+/* Panel Close Button */
+.iiif-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.iiif-panel-close:hover {
+  color: var(--text-on-hover);
+}
+
+/* Panel Resize Handles */
+.iiif-panel {
+  position: relative;
+}
+.iiif-panel.resizable {
+  overflow: visible;
+}
+
+/* Edge resize handles */
+.iiif-resize-handle {
+  position: absolute;
+  background: transparent;
+  z-index: 10;
+  pointer-events: auto;
+}
+/* Cursor override during resize - applied to body to prevent cursor flicker */
+body.iiif-resizing-ew,
+body.iiif-resizing-ew * {
+  cursor: ew-resize !important;
+}
+body.iiif-resizing-ns,
+body.iiif-resizing-ns * {
+  cursor: ns-resize !important;
+}
+body.iiif-resizing-nwse,
+body.iiif-resizing-nwse * {
+  cursor: nwse-resize !important;
+}
+body.iiif-resizing-nesw,
+body.iiif-resizing-nesw * {
+  cursor: nesw-resize !important;
+}
+
+/* Horizontal edges (left/right) */
+.iiif-resize-handle-e,
+.iiif-resize-handle-w {
+  width: 6px;
+  top: 0;
+  bottom: 0;
+  cursor: ew-resize;
+}
+.iiif-resize-handle-e {
+  right: -3px;
+}
+.iiif-resize-handle-w {
+  left: -3px;
+}
+
+/* Vertical edges (top/bottom) */
+.iiif-resize-handle-n,
+.iiif-resize-handle-s {
+  height: 6px;
+  left: 0;
+  right: 0;
+  cursor: ns-resize;
+}
+.iiif-resize-handle-n {
+  top: -3px;
+}
+.iiif-resize-handle-s {
+  bottom: -3px;
+}
+
+/* Corner resize handles */
+.iiif-resize-handle-nw,
+.iiif-resize-handle-ne,
+.iiif-resize-handle-sw,
+.iiif-resize-handle-se {
+  width: 10px;
+  height: 10px;
+}
+.iiif-resize-handle-nw {
+  top: -5px;
+  left: -5px;
+  cursor: nwse-resize;
+}
+.iiif-resize-handle-ne {
+  top: -5px;
+  right: -5px;
+  cursor: nesw-resize;
+}
+.iiif-resize-handle-sw {
+  bottom: -5px;
+  left: -5px;
+  cursor: nesw-resize;
+}
+.iiif-resize-handle-se {
+  bottom: -5px;
+  right: -5px;
+  cursor: nwse-resize;
+}
+
+/* Hide resize handles when panel is collapsed */
+.iiif-panel:has(.iiif-panel-body.collapsed) .iiif-resize-handle {
+  display: none;
+}
+
+/* Panel with explicit dimensions during/after resize */
+.iiif-panel.resized {
+  min-width: unset !important;
+  max-width: unset !important;
+  min-height: unset !important;
+  max-height: unset !important;
+}
+
+/* =============================================
+   3. Toolbar
+   ============================================= */
+
+.iiif-toolbar {
+  position: absolute;
+  height: 2.2rem;
+  top: clamp(2rem, 5vh, 3rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  backdrop-filter: var(--backdrop-filter);
+  box-shadow: var(--shadow);
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: default;
+  font-family: var(--font-family);
+}
+
+.iiif-toolbar-wrapper {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  z-index: 1000;
+}
+.iiif-toolbar-wrapper.dragging {
+  opacity: 0.9;
+  z-index: 3000;
+}
+.iiif-toolbar-wrapper.dragging .iiif-toolbar-drag-handle {
+  cursor: grabbing;
+}
+.iiif-toolbar-wrapper > .iiif-toolbar,
+.iiif-toolbar-wrapper > .iiif-toolbar.position-bottom-center {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
+  transition: none;
+}
+
+.iiif-toolbar-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  min-height: 2.2rem;
+  cursor: grab;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  backdrop-filter: var(--backdrop-filter);
+  box-shadow: var(--shadow);
+  color: var(--text-muted);
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.iiif-toolbar-drag-handle:hover {
+  opacity: 1;
+}
+.iiif-toolbar-drag-handle:active {
+  cursor: grabbing;
+}
+
+.iiif-toolbar-btn-group {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.iiif-toolbar.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+.iiif-toolbar-button {
+  position: relative;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  border-radius: 3px;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-width: 2rem;
+  margin: 0 0.1rem;
+}
+.iiif-toolbar-button:hover {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+.iiif-toolbar-button:active {
+  background-color: rgba(0, 0, 0, 0.45);
+}
+
+/* Toolbar Position Variants */
+.iiif-toolbar.position-top-left {
+  top: clamp(1rem, 5vh, 2rem);
+  left: clamp(2rem, 5vw, 3rem);
+  right: auto;
+}
+.iiif-toolbar.position-bottom-right {
+  top: auto;
+  bottom: clamp(1rem, 5vh, 2rem);
+  right: clamp(2rem, 5vw, 3rem);
+}
+.iiif-toolbar.position-bottom-left {
+  top: auto;
+  bottom: clamp(1rem, 5vh, 2rem);
+  left: clamp(2rem, 5vw, 3rem);
+  right: auto;
+}
+.iiif-toolbar.position-bottom-center {
+  top: auto;
+  bottom: clamp(2rem, 5vh, 3rem);
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+
+/* =============================================
+   4. Canvas Navigator (Pages Panel)
+   ============================================= */
+
+.iiif-canvas-nav {
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-height: 70vh;
+  width: 72px;
+}
+
+.iiif-canvas-nav-header {
+  padding: 6px 8px;
+}
+
+.iiif-canvas-nav-list {
+  padding: 4px;
+  gap: 4px;
+}
+
+.iiif-canvas-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.iiif-canvas-nav-item:hover {
+  background: var(--hover-bg);
+}
+.iiif-canvas-nav-item.active {
+  border-color: var(--active-border);
+  background: var(--active-bg);
+}
+
+.iiif-canvas-nav-item-img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  border-radius: 2px;
+  background: var(--input-bg);
+}
+
+.iiif-canvas-nav-item-label {
+  font-size: 9px;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 2px;
+  max-width: 58px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =============================================
+   5. Table of Contents
+   ============================================= */
+
+.iiif-toc {
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-height: 70vh;
+  min-width: 160px;
+  max-width: 280px;
+}
+
+.iiif-toc-list {
+  padding: 4px 0;
+}
+
+.iiif-toc-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.iiif-toc-row.iiif-toc-clickable {
+  cursor: pointer;
+}
+.iiif-toc-row.iiif-toc-clickable:hover {
+  background: var(--hover-bg);
+}
+
+.iiif-toc-toggle {
+  font-size: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+  user-select: none;
+}
+.iiif-toc-toggle:hover {
+  color: var(--text-on-hover);
+}
+
+.iiif-toc-toggle-spacer {
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.iiif-toc-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* =============================================
+   6. Annotation Panel
+   ============================================= */
+
+.iiif-annotation-panel {
+  max-height: 40vh;
+  min-width: 120px;
+  max-width: 240px;
+}
+.iiif-annotation-panel:has(.iiif-panel-body.collapsed) {
+  width: 120px;
+  min-width: 120px;
+}
+
+.iiif-annotation-panel-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: default;
+}
+.iiif-annotation-panel-item:hover {
+  background: var(--hover-bg);
+}
+
+.iiif-annotation-panel-item-label {
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Eye Toggle Button (shared pattern) */
+.iiif-eye-btn {
+  background: none;
+  border: none;
+  color: var(--text-dimmed);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast);
+}
+.iiif-eye-btn:hover {
+  color: var(--text-secondary);
+}
+.iiif-eye-btn.active {
+  color: rgba(var(--color-primary), 0.9);
+}
+.iiif-eye-btn.active:hover {
+  color: rgb(var(--color-primary));
+}
+.iiif-eye-btn.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.iiif-eye-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* =============================================
+   7. CV Panel (Vision)
+   ============================================= */
+
+.iiif-cv-panel {
+  min-width: 120px;
+  max-width: 200px;
+}
+.iiif-cv-panel:has(.iiif-panel-body.collapsed) {
+  width: 120px;
+  min-width: 120px;
+}
+
+.iiif-cv-panel-body {
+  align-items: center;
+}
+
+.iiif-cv-panel-video {
+  width: 160px;
+  height: 120px;
+  border-radius: 4px;
+  background: #000;
+  margin: 4px auto;
+  display: block;
+}
+
+.iiif-cv-panel-status {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 2px 8px;
+}
+
+.iiif-cv-panel-toggle {
+  margin: 4px 8px 8px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--text-on-hover);
+  font-size: 11px;
+  cursor: pointer;
+  width: calc(100% - 16px);
+}
+.iiif-cv-panel-toggle:hover {
+  background: var(--button-bg-hover);
+}
+.iiif-cv-panel-toggle.active {
+  border-color: rgba(var(--color-danger), 0.4);
+  background: rgba(var(--color-danger), 0.2);
+}
+.iiif-cv-panel-toggle.active:hover {
+  background: rgba(var(--color-danger), 0.4);
+}
+
+/* =============================================
+   7b. Compare Panel
+   ============================================= */
+
+.iiif-compare-panel {
+  top: clamp(2rem, 5vh, 3rem);
+  right: calc(clamp(2rem, 6vw, 4rem) + 170px);
+  min-width: 120px;
+  max-width: 200px;
+  width: 120px;
+}
+
+/* When compare mode is active, expand the panel */
+.iiif-compare-panel.compare-active {
+  width: 280px;
+  max-width: 280px;
+  max-height: 60vh;
+  z-index: 2000;
+  pointer-events: auto;
+}
+
+/* When collapsed, hide the body content — collapse is on .iiif-panel-body */
+.iiif-compare-panel:has(.iiif-panel-body.collapsed) {
+  width: auto;
+  max-width: 200px;
+}
+
+/* Button group in header */
+.iiif-panel-header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iiif-compare-panel-body {
+  align-items: stretch;
+}
+
+.iiif-compare-panel-description {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 4px 8px;
+  margin: 0;
+}
+
+.iiif-compare-panel-toggle {
+  margin: 4px 8px 8px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--text-on-hover);
+  font-size: 11px;
+  cursor: pointer;
+  width: calc(100% - 16px);
+}
+.iiif-compare-panel-toggle:hover {
+  background: var(--button-bg-hover);
+}
+.iiif-compare-panel-toggle.active {
+  border-color: rgba(var(--color-danger), 0.4);
+  background: rgba(var(--color-danger), 0.2);
+}
+.iiif-compare-panel-toggle.active:hover {
+  background: rgba(var(--color-danger), 0.4);
+}
+
+/* =============================================
+   7c. Tools Panel (Panel Visibility)
+   ============================================= */
+
+/* Dock containers — four corners */
+.iiif-dock {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  z-index: 100;
+  pointer-events: none;
+  overflow: visible;
+  min-width: 120px;
+}
+.iiif-dock > * {
+  pointer-events: auto;
+}
+.iiif-dock > .iiif-panel,
+.iiif-dock > .iiif-toolbar,
+.iiif-dock > .iiif-toolbar-wrapper,
+.iiif-dock > .iiif-navigation-wrapper {
+  position: relative;
+  right: auto;
+  left: auto;
+  top: auto;
+  bottom: auto;
+  transform: none;
+}
+
+/* Corner positions */
+.iiif-dock-top-right {
+  top: clamp(2rem, 5vh, 3rem);
+  right: clamp(2rem, 6vw, 4rem);
+  align-items: flex-end;
+}
+.iiif-dock-top-left {
+  top: clamp(2rem, 5vh, 3rem);
+  left: clamp(2rem, 6vw, 4rem);
+  align-items: flex-start;
+}
+.iiif-dock-bottom-right {
+  bottom: clamp(2rem, 5vh, 3rem);
+  right: clamp(2rem, 6vw, 4rem);
+  align-items: flex-end;
+  flex-direction: column-reverse;
+}
+.iiif-dock-bottom-left {
+  bottom: clamp(2rem, 5vh, 3rem);
+  left: clamp(2rem, 6vw, 4rem);
+  align-items: flex-start;
+  flex-direction: column-reverse;
+}
+.iiif-dock-top-center {
+  top: clamp(2rem, 5vh, 3rem);
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+}
+.iiif-dock-bottom-center {
+  bottom: clamp(2rem, 5vh, 3rem);
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+  flex-direction: column-reverse;
+}
+
+/* Dock highlight when a panel is being dragged over it */
+.iiif-dock.dock-highlight {
+  outline: 2px dashed rgba(var(--color-primary), 0.5);
+  outline-offset: 4px;
+  border-radius: 8px;
+  background: rgba(var(--color-primary), 0.04);
+}
+
+
+/* Settings icon button row */
+.iiif-settings-btn-row {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px 6px;
+  border-top: 1px solid var(--border-color);
+}
+.iiif-settings-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.iiif-settings-icon-btn:hover {
+  background: var(--button-bg-hover);
+  color: var(--text-on-hover);
+}
+.iiif-settings-icon-btn.active {
+  background: var(--button-bg-hover);
+  color: var(--text-on-hover);
+}
+.iiif-settings-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.iiif-settings-panel {
+  position: relative;
+  top: auto;
+  right: auto;
+  min-width: 120px;
+  max-width: 160px;
+}
+
+.iiif-settings-panel-body {
+  padding: 6px 8px;
+}
+
+.iiif-settings-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.iiif-settings-panel-item:hover {
+  color: var(--text-on-hover);
+}
+
+.iiif-settings-panel-checkbox {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--link-color);
+  cursor: pointer;
+}
+
+.iiif-settings-divider {
+  height: 1px;
+  background: transparent;
+  margin: 4px -8px;
+  border-bottom: 1px solid var(--border-color-light);
+}
+
+.iiif-settings-color-item {
+  justify-content: space-between;
+}
+
+.iiif-settings-color-input {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border-color-light);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.iiif-settings-color-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.iiif-settings-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.iiif-toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.iiif-toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.iiif-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.iiif-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 2px;
+  bottom: 2px;
+  background: #ccc;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.iiif-toggle-switch input:checked + .iiif-toggle-slider {
+  background: rgba(var(--color-primary), 0.6);
+}
+
+.iiif-toggle-switch input:checked + .iiif-toggle-slider::before {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+/* User-hidden state for panels and toolbar */
+.iiif-panel.user-hidden,
+.iiif-toolbar.user-hidden {
+  display: none !important;
+}
+
+/* Container-level hiding classes (affects all viewers including compare mode) */
+.hide-navigation .iiif-toc,
+.hide-navigation .iiif-navigation-wrapper {
+  display: none !important;
+}
+.hide-pages .iiif-canvas-nav {
+  display: none !important;
+}
+.hide-manifest .iiif-manifest-panel {
+  display: none !important;
+}
+.hide-annotations .iiif-annotation-panel {
+  display: none !important;
+}
+.hide-vision .iiif-cv-panel {
+  display: none !important;
+}
+.hide-compare .iiif-compare-panel {
+  display: none !important;
+}
+
+/* Hide main viewer's panels when in compare mode (direct children only) */
+.iiif-compare-active > .iiif-canvas-nav,
+.iiif-compare-active > .iiif-manifest-panel,
+.iiif-compare-active > .iiif-annotation-panel,
+.iiif-compare-active > .iiif-cv-panel,
+.iiif-compare-active > .iiif-toolbar,
+.iiif-compare-active > .iiif-toc-container {
+  display: none !important;
+}
+
+/* =============================================
+   8. Manifest Panel
+   ============================================= */
+
+.iiif-manifest-panel {
+  max-height: 50vh;
+  min-width: 120px;
+  max-width: 320px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.iiif-manifest-panel:has(.iiif-panel-body.collapsed) {
+  width: 120px;
+  min-width: 120px;
+}
+
+.iiif-manifest-panel-body {
+  padding: 8px 10px;
+  overflow-y: auto;
+}
+.iiif-manifest-panel-body::-webkit-scrollbar { width: 6px; }
+.iiif-manifest-panel-body::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+}
+
+.iiif-manifest-panel-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  font-size: 11px;
+}
+.iiif-manifest-panel-row + .iiif-manifest-panel-row {
+  border-top: 1px solid var(--border-color-light);
+}
+
+.iiif-manifest-panel-label {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.iiif-manifest-panel-value {
+  color: var(--text-primary);
+  word-break: break-word;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.iiif-manifest-panel-value a {
+  color: var(--link-color);
+  text-decoration: none;
+}
+.iiif-manifest-panel-value a:hover {
+  text-decoration: underline;
+}
+
+.iiif-manifest-panel-logo {
+  max-width: 100px;
+  max-height: 50px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.iiif-manifest-panel-separator {
+  height: 1px;
+  background: var(--border-color-light);
+  margin: 6px 0;
+}
+
+/* =============================================
+   9. Canvas List (Compare Mode)
+   ============================================= */
+
+.iiif-canvas-list {
+  top: calc(clamp(2rem, 5vh, 3rem) + 2.2rem + 0.5rem);
+  right: clamp(2rem, 6vw, 4rem);
+  width: 280px;
+  max-height: 60vh;
+  z-index: 1000;
+}
+
+.iiif-canvas-list-header {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.iiif-canvas-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: grab;
+}
+.iiif-canvas-list-item:active {
+  cursor: grabbing;
+}
+.iiif-canvas-list-item:hover {
+  background: var(--hover-bg);
+}
+
+.iiif-canvas-list-item-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 2px;
+  background: var(--input-bg);
+  flex-shrink: 0;
+}
+
+.iiif-canvas-list-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.iiif-canvas-list-item-label {
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+.iiif-canvas-list-rename,
+.iiif-canvas-list-delete {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.iiif-canvas-list-item:hover .iiif-canvas-list-rename,
+.iiif-canvas-list-item:hover .iiif-canvas-list-delete {
+  opacity: 1;
+}
+.iiif-canvas-list-delete:hover {
+  color: #e57373 !important;
+}
+
+.iiif-canvas-list-rename-input {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid rgba(var(--color-primary), 0.5);
+  border-radius: 3px;
+  color: var(--text-primary);
+  padding: 1px 4px;
+  font-size: 11px;
+  font-family: var(--font-family);
+  outline: none;
+}
+
+.iiif-canvas-list-item.dragging {
+  opacity: 0.85;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.iiif-canvas-list-drag-placeholder {
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  margin: 2px 0;
+  opacity: 0.5;
+}
+
+.iiif-canvas-list-add {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  border-top: 1px solid var(--border-color);
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.iiif-canvas-list-add-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  color: var(--text-on-hover);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  outline: none;
+  pointer-events: auto;
+}
+.iiif-canvas-list-add-input::placeholder {
+  color: var(--input-placeholder);
+}
+.iiif-canvas-list-add-input:focus {
+  border-color: var(--focus-border);
+}
+
+.iiif-canvas-list-add-btn {
+  background: var(--button-bg);
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  color: var(--text-on-hover);
+  width: 28px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+.iiif-canvas-list-add-btn:hover {
+  background: var(--button-bg-hover);
+}
+
+/* =============================================
+   10. Comparison Mode
+   ============================================= */
+
+.iiif-compare-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+}
+
+.iiif-compare-viewers {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+.iiif-compare-environment {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background-color: #000;
+}
+.iiif-compare-environment + .iiif-compare-environment {
+  border-left: 1px solid var(--border-color);
+}
+
+.iiif-compare-environment-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color-light);
+  font-family: var(--font-family);
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  z-index: 10;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iiif-compare-environment-viewer {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+}
+.iiif-compare-environment-viewer:active {
+  cursor: grabbing;
+}
+
+/* Compare Empty State */
+.iiif-compare-empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #111;
+  z-index: 10;
+}
+.iiif-compare-empty-heading {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+  font-family: var(--font-family);
+  letter-spacing: 0.5px;
+}
+.iiif-compare-empty-input-wrapper {
+  display: flex;
+  gap: 8px;
+}
+.iiif-compare-empty-input {
+  width: 320px;
+  padding: 8px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-family);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+.iiif-compare-empty-input::placeholder {
+  color: var(--input-placeholder);
+}
+.iiif-compare-empty-input:focus {
+  border-color: rgba(var(--color-primary), 0.5);
+}
+.iiif-compare-empty-btn {
+  padding: 8px 16px;
+  background: var(--button-bg);
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.iiif-compare-empty-btn:hover {
+  background: var(--button-bg-hover);
+}
+
+/* =============================================
+   11. Annotation Overlay Elements
+   ============================================= */
+
+.iiif-annotation-point {
+  overflow: visible !important;
+}
+.iiif-annotation-point:hover .iiif-annotation-pin {
+  transform: rotate(-45deg) scale(1.2);
+}
+
+.iiif-annotation-pin {
+  transition: transform var(--transition-fast);
+}
+
+.iiif-annotation-svg {
+  overflow: visible;
+}
+.iiif-annotation-svg svg {
+  pointer-events: all;
+}
+
+.iiif-annotation-label a {
+  color: var(--link-color);
+  text-decoration: underline;
+}
+.iiif-annotation-label p {
+  margin: 2px 0;
+}
+
+/* =============================================
+   11b. Annotation Transition Utilities
+   ============================================= */
+
+/* Fade */
+.iiif-ann-fade-in {
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+}
+.iiif-ann-fade-out {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* Scale + Fade */
+.iiif-ann-scale-in {
+  opacity: 1;
+  transform-origin: center center;
+  animation: iiif-scale-in 0.3s ease-out forwards;
+}
+.iiif-ann-scale-out {
+  opacity: 0;
+  transform-origin: center center;
+  animation: iiif-scale-out 0.2s ease-in forwards;
+}
+@keyframes iiif-scale-in {
+  from { opacity: 0; scale: 0.85; }
+  to   { opacity: 1; scale: 1; }
+}
+@keyframes iiif-scale-out {
+  from { opacity: 1; scale: 1; }
+  to   { opacity: 0; scale: 0.85; }
+}
+
+/* Slide up + Fade */
+.iiif-ann-slide-in {
+  animation: iiif-slide-in 0.3s ease-out forwards;
+}
+.iiif-ann-slide-out {
+  animation: iiif-slide-out 0.2s ease-in forwards;
+}
+@keyframes iiif-slide-in {
+  from { opacity: 0; translate: 0 8px; }
+  to   { opacity: 1; translate: 0 0; }
+}
+@keyframes iiif-slide-out {
+  from { opacity: 1; translate: 0 0; }
+  to   { opacity: 0; translate: 0 8px; }
+}
+
+/* Continuous pulse animation for custom annotations */
+@keyframes iiif-ann-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.15); opacity: 0.8; }
+}
+
+/* Annotation Popup (click-to-open detail) */
+.iiif-annotation-popup {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 8px;
+  transform-origin: top left;
+  min-width: 150px;
+  max-width: 320px;
+  padding: 10px 14px;
+  background: var(--panel-bg);
+  backdrop-filter: var(--backdrop-filter);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: normal;
+  pointer-events: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: iiif-popup-in 0.15s ease-out;
+}
+.iiif-annotation-popup img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  display: block;
+  margin: 6px 0;
+}
+.iiif-annotation-popup h3,
+.iiif-annotation-popup h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.iiif-annotation-popup p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.iiif-annotation-popup a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.iiif-annotation-popup a:hover {
+  text-decoration: underline;
+}
+.iiif-annotation-popup-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.iiif-annotation-popup-close:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+@keyframes iiif-popup-in {
+  from { opacity: 0; translate: -4px 0; }
+  to   { opacity: 1; translate: 0 0; }
+}
+
+/* =============================================
+   12. Light Theme
+   ============================================= */
+
+/* Light theme variables are defined in iiif-theme.css */
+/* Apply class="theme-light" to the viewer container to use light theme */
+
+.theme-light .iiif-toolbar-button {
+  color: #333;
+}
+.theme-light .iiif-toolbar-button:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+.theme-light .iiif-toolbar-button:active {
+  background-color: rgba(0, 0, 0, 0.15);
+}
+.theme-light .iiif-toolbar-divider-block {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* =============================================
+   Touch Support
+   ============================================= */
+
+/* Prevent browser default touch behaviors on interactive elements */
+.iiif-panel-header,
+.iiif-navigation-drag-handle,
+.iiif-canvas-list-item {
+  touch-action: none;
+}
+
+/* Remove iOS tap highlight flash */
+.iiif-panel-header,
+.iiif-nav-zoom-btn,
+.iiif-toolbar-button,
+.iiif-cv-panel-toggle,
+.iiif-panel-collapse,
+.iiif-eye-btn,
+.iiif-canvas-list-item,
+.iiif-compare-empty-btn {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Duplicate :hover feedback on :active for touch devices */
+.iiif-nav-zoom-btn:active {
+  color: var(--text-on-hover);
+  background: var(--hover-bg);
+}
+.iiif-cv-panel-toggle:active {
+  background: var(--button-bg-hover);
+}
+.iiif-cv-panel-toggle.active:active {
+  background: rgba(var(--color-danger), 0.4);
+}
+
+/* Show rename/delete buttons on touch (no hover available) */
+@media (pointer: coarse) {
+  .iiif-canvas-list-rename,
+  .iiif-canvas-list-delete {
+    opacity: 1;
+  }
+
+  /* Larger resize handles for touch */
+  .iiif-resize-handle-e,
+  .iiif-resize-handle-w {
+    width: 12px;
+  }
+  .iiif-resize-handle-e { right: -6px; }
+  .iiif-resize-handle-w { left: -6px; }
+
+  .iiif-resize-handle-n,
+  .iiif-resize-handle-s {
+    height: 12px;
+  }
+  .iiif-resize-handle-n { top: -6px; }
+  .iiif-resize-handle-s { bottom: -6px; }
+
+  .iiif-resize-handle-nw,
+  .iiif-resize-handle-ne,
+  .iiif-resize-handle-sw,
+  .iiif-resize-handle-se {
+    width: 16px;
+    height: 16px;
+  }
+  .iiif-resize-handle-nw { top: -8px; left: -8px; }
+  .iiif-resize-handle-ne { top: -8px; right: -8px; }
+  .iiif-resize-handle-sw { bottom: -8px; left: -8px; }
+  .iiif-resize-handle-se { bottom: -8px; right: -8px; }
+}
+
+/* =============================================
+   RESPONSIVE BREAKPOINTS
+   ============================================= */
+
+/* --- Large screens (1440px+) --- */
+@media (min-width: 1440px) {
+  .iiif-dock-top-right,
+  .iiif-dock-top-left,
+  .iiif-dock-top-center {
+    top: 2.5rem;
+  }
+  .iiif-dock-bottom-right,
+  .iiif-dock-bottom-left,
+  .iiif-dock-bottom-center {
+    bottom: 2.5rem;
+  }
+  .iiif-dock-top-right,
+  .iiif-dock-bottom-right {
+    right: 3rem;
+  }
+  .iiif-dock-top-left,
+  .iiif-dock-bottom-left {
+    left: 3rem;
+  }
+
+  /* Larger panel max widths on big screens */
+  .iiif-toc,
+  .iiif-manifest-panel,
+  .iiif-annotation-panel {
+    max-width: 320px;
+  }
+}
+
+/* --- Desktop (768px - 1440px) - Default styles, no changes needed --- */
+
+/* --- Tablet (480px - 768px) --- */
+@media (max-width: 768px) {
+  .iiif-dock-top-right,
+  .iiif-dock-top-left,
+  .iiif-dock-top-center {
+    top: 0.75rem;
+  }
+  .iiif-dock-bottom-right,
+  .iiif-dock-bottom-left,
+  .iiif-dock-bottom-center {
+    bottom: 0.75rem;
+  }
+  .iiif-dock-top-right,
+  .iiif-dock-bottom-right {
+    right: 0.75rem;
+  }
+  .iiif-dock-top-left,
+  .iiif-dock-bottom-left {
+    left: 0.75rem;
+  }
+
+  /* Compact panels */
+  .iiif-panel {
+    max-width: 200px;
+  }
+  .iiif-panel-header {
+    padding: 5px 8px;
+    font-size: 9px;
+  }
+  .iiif-panel-body {
+    padding: 3px;
+  }
+
+  /* Smaller canvas nav thumbnails */
+  .iiif-canvas-nav {
+    width: 60px;
+  }
+  .iiif-canvas-nav-item-img {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Compact toolbar */
+  .iiif-toolbar {
+    height: 2rem;
+  }
+  .iiif-toolbar-button {
+    min-width: 1.8rem;
+  }
+}
+
+/* --- Mobile (<480px) - Collapsed minimal UI --- */
+@media (max-width: 480px) {
+  /* Minimal dock spacing */
+  .iiif-dock-top-right,
+  .iiif-dock-top-left,
+  .iiif-dock-top-center {
+    top: 0.5rem;
+  }
+  .iiif-dock-bottom-right,
+  .iiif-dock-bottom-left,
+  .iiif-dock-bottom-center {
+    bottom: 0.5rem;
+  }
+  .iiif-dock-top-right,
+  .iiif-dock-bottom-right {
+    right: 0.5rem;
+  }
+  .iiif-dock-top-left,
+  .iiif-dock-bottom-left {
+    left: 0.5rem;
+  }
+  .iiif-dock {
+    gap: 4px;
+  }
+
+  /* Panels collapse to icons by default */
+  .iiif-panel {
+    max-width: 160px;
+  }
+  .iiif-panel-header {
+    padding: 4px 6px;
+    font-size: 8px;
+  }
+  .iiif-panel-body {
+    padding: 2px;
+  }
+
+  /* Minimal canvas nav - just icons */
+  .iiif-canvas-nav {
+    width: 48px;
+  }
+  .iiif-canvas-nav-item {
+    padding: 2px;
+  }
+  .iiif-canvas-nav-item-img {
+    width: 36px;
+    height: 36px;
+  }
+  .iiif-canvas-nav-item-label {
+    display: none;
+  }
+
+  /* Hide less essential panels/elements on mobile */
+  .iiif-cv-panel,
+  .iiif-toc,
+  .iiif-navigation-wrapper {
+    display: none !important;
+  }
+  /* Allow user to show them via settings */
+  .iiif-viewer.show-all-panels .iiif-cv-panel,
+  .iiif-viewer.show-all-panels .iiif-toc,
+  .iiif-viewer.show-all-panels .iiif-navigation-wrapper {
+    display: flex !important;
+  }
+
+  /* Compact toolbar */
+  .iiif-toolbar {
+    height: 1.8rem;
+  }
+  .iiif-toolbar-button {
+    min-width: 1.6rem;
+  }
+  .iiif-toolbar-btn-group {
+    gap: 0;
+  }
+
+  /* Hide resize handles on mobile - use pinch/zoom instead */
+  .iiif-resize-handle {
+    display: none;
+  }
+
+  /* Settings panel stays accessible */
+  .iiif-settings-panel {
+    display: flex;
+    max-width: 140px;
+  }
+}
+
