@@ -56,33 +56,40 @@ export class PanelManager {
         title.textContent = options.title;
         header.appendChild(title);
 
-        const collapseBtn = document.createElement('button');
-        collapseBtn.className = `iiif-panel-collapse ${options.className}-collapse`;
-        collapseBtn.textContent = options.initiallyCollapsed ? '+' : '−';
-        header.appendChild(collapseBtn);
+        let collapseBtn: HTMLButtonElement | undefined;
+        if (options.collapsible !== false) {
+            collapseBtn = document.createElement('button');
+            collapseBtn.className = `iiif-panel-collapse ${options.className}-collapse`;
+            collapseBtn.textContent = options.initiallyCollapsed ? '+' : '−';
+            header.appendChild(collapseBtn);
+        }
 
-        panel.appendChild(header);
+        if (options.showHeader !== false) {
+            panel.appendChild(header);
+        }
 
         const body = document.createElement('div');
         body.className = `iiif-panel-body ${options.className}-body`;
         if (options.initiallyCollapsed) body.classList.add('collapsed');
         panel.appendChild(body);
 
-        this.addEventListener(collapseBtn, 'click', () => {
-            const isCollapsing = !body.classList.contains('collapsed');
-            if (isCollapsing) {
-                if (panel.style.height) {
-                    panel.dataset.resizedHeight = panel.style.height;
+        if (collapseBtn) {
+            this.addEventListener(collapseBtn, 'click', () => {
+                const isCollapsing = !body.classList.contains('collapsed');
+                if (isCollapsing) {
+                    if (panel.style.height) {
+                        panel.dataset.resizedHeight = panel.style.height;
+                    }
+                    panel.style.height = '';
+                } else {
+                    if (panel.dataset.resizedHeight) {
+                        panel.style.height = panel.dataset.resizedHeight;
+                    }
                 }
-                panel.style.height = '';
-            } else {
-                if (panel.dataset.resizedHeight) {
-                    panel.style.height = panel.dataset.resizedHeight;
-                }
-            }
-            body.classList.toggle('collapsed');
-            collapseBtn.textContent = body.classList.contains('collapsed') ? '+' : '−';
-        });
+                body.classList.toggle('collapsed');
+                collapseBtn!.textContent = body.classList.contains('collapsed') ? '+' : '−';
+            });
+        }
 
         // Bring panel to front when clicked
         this.addEventListener(panel, 'mousedown', () => {
@@ -92,8 +99,16 @@ export class PanelManager {
             this.bringPanelToFront(panel);
         }, { passive: true });
 
+        // When header is hidden, create a standalone drag handle beside the panel
+        let dragHandle: HTMLElement | undefined;
+        if (options.showHeader === false && options.draggable !== false) {
+            dragHandle = document.createElement('div');
+            dragHandle.className = 'iiif-panel-drag-handle';
+            panel.appendChild(dragHandle);
+        }
+
         if (options.draggable !== false) {
-            this.makePanelDraggable(panel, header);
+            this.makePanelDraggable(panel, dragHandle ?? header);
         }
 
         if (options.resizable !== false) {
@@ -172,19 +187,18 @@ export class PanelManager {
             return Array.from(this.container.querySelectorAll('.iiif-dock')) as HTMLElement[];
         };
 
-        const hitTestDock = (clientX: number, clientY: number): HTMLElement | null => {
+        const hitTestDock = (_clientX: number, _clientY: number): HTMLElement | null => {
             const panelRect = panel.getBoundingClientRect();
+            const margin = PANEL_CONFIG.DOCK_HIT_MARGIN;
             for (const dock of getDocks()) {
                 const rect = dock.getBoundingClientRect();
                 if (rect.width === 0 && rect.height === 0) continue;
-                const margin = PANEL_CONFIG.DOCK_HIT_MARGIN;
-                const testTop = Math.min(clientY, panelRect.top);
-                const testBottom = Math.max(clientY, panelRect.bottom);
+                // Test if any edge of the panel overlaps the dock region (+ margin)
                 if (
-                    clientX >= rect.left - margin &&
-                    clientX <= rect.right + margin &&
-                    testBottom >= rect.top - margin &&
-                    testTop <= rect.bottom + margin
+                    panelRect.right >= rect.left - margin &&
+                    panelRect.left <= rect.right + margin &&
+                    panelRect.bottom >= rect.top - margin &&
+                    panelRect.top <= rect.bottom + margin
                 ) {
                     return dock;
                 }
@@ -287,17 +301,21 @@ export class PanelManager {
             panelHeight = rect.height;
 
             const parentDock = panel.parentElement;
-            if (parentDock && parentDock !== this.container) {
-                if (parentDock.classList.contains('iiif-dock')) {
-                    ensureSpacer();
-                    parentDock.insertBefore(spacer!, panel);
-                    spacer!.style.height = `${panelHeight}px`;
-                    spacerDock = parentDock;
-                }
+            if (parentDock && parentDock !== this.container && parentDock.classList.contains('iiif-dock')) {
+                ensureSpacer();
+                parentDock.insertBefore(spacer!, panel);
+                spacer!.style.height = `${panelHeight}px`;
+                spacerDock = parentDock;
+            }
+
+            // Reparent to container so position: absolute works reliably
+            // (position: fixed breaks inside docks that use CSS transforms)
+            if (panel.parentElement !== this.container) {
                 this.container.appendChild(panel);
             }
 
             panel.style.position = 'absolute';
+            panel.style.width = `${rect.width}px`;
             panel.style.right = 'auto';
             panel.style.bottom = 'auto';
             panel.style.transform = 'none';
@@ -327,6 +345,7 @@ export class PanelManager {
             const newLeft = startLeft + dx;
             const newTop = startTop + dy;
 
+            // Clamp to container bounds (container-relative coordinates)
             const containerRect = this.container.getBoundingClientRect();
             const panelRect = panel.getBoundingClientRect();
 
@@ -377,19 +396,26 @@ export class PanelManager {
                 dock.classList.remove('dock-highlight');
             }
 
-            const targetDock = hitTestDock(clientX, clientY);
-            if (targetDock && spacer?.parentElement === targetDock) {
+            const clearDragStyles = () => {
                 panel.style.position = '';
+                panel.style.width = '';
                 panel.style.left = '';
                 panel.style.top = '';
                 panel.style.right = '';
                 panel.style.bottom = '';
                 panel.style.transform = '';
+            };
 
+            const targetDock = hitTestDock(clientX, clientY);
+            if (targetDock && spacer?.parentElement === targetDock) {
+                // Dock the panel: reparent into dock, clear absolute styles
+                clearDragStyles();
                 targetDock.insertBefore(panel, spacer);
                 spacer.remove();
                 spacerDock = null;
             } else {
+                // Leave floating — panel is already in this.container from undockPanel()
+                // Just keep current absolute position and clean up spacer
                 removeSpacerImmediate();
             }
         };

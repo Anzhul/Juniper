@@ -108,6 +108,12 @@ if (container) {
                 popup: popupContent,
                 popupPosition: { x: 28, y: 0 },
             });
+            // lookAt demos: named positions, mixed, and explicit coordinates
+            viewer.lookAt([600, 'hm'], { fit: 'width' });
+            // viewer.lookAt(['vm', 800], { fit: 'width' });  // named vertical + pixel horizontal
+            // viewer.lookAt([400, 'hm'], { zoom: 2 });       // pixel vertical + named horizontal
+            // viewer.lookAt(['vt', 'hl'], { zoom: 2 });
+            // viewer.lookAt(1200, 400, { zoom: 3 });          // explicit coordinates still work
         })
         .catch((error) => console.error('Error loading:', error));
 }

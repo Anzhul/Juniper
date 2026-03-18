@@ -33,6 +33,11 @@ export function setupInputHandlers(
     abortController: AbortController,
     callbacks: InputHandlerCallbacks
 ): TouchState {
+    // Keep a local rect reference that we refresh at each interaction start,
+    // so scroll/layout changes don't cause stale offset calculations.
+    let rect = cachedContainerRect;
+    const refreshRect = () => { rect = container.getBoundingClientRect(); };
+
     const touchState: TouchState = {
         activeTouches: new Map(),
         lastPinchDistance: 0,
@@ -59,14 +64,15 @@ export function setupInputHandlers(
         event.preventDefault();
         event.stopPropagation();
 
-        const canvasX = event.clientX - cachedContainerRect.left;
-        const canvasY = event.clientY - cachedContainerRect.top;
+        refreshRect();
+        const canvasX = event.clientX - rect.left;
+        const canvasY = event.clientY - rect.top;
 
         camera.startInteractivePan(canvasX, canvasY);
 
         const onMouseMove = (moveEvent: MouseEvent) => {
-            const newCanvasX = moveEvent.clientX - cachedContainerRect.left;
-            const newCanvasY = moveEvent.clientY - cachedContainerRect.top;
+            const newCanvasX = moveEvent.clientX - rect.left;
+            const newCanvasY = moveEvent.clientY - rect.top;
             camera.updateInteractivePan(newCanvasX, newCanvasY);
         };
 
@@ -83,8 +89,9 @@ export function setupInputHandlers(
     });
 
     addEventListener(container, 'wheel', (event: WheelEvent) => {
-        const canvasX = event.clientX - cachedContainerRect.left;
-        const canvasY = event.clientY - cachedContainerRect.top;
+        refreshRect();
+        const canvasX = event.clientX - rect.left;
+        const canvasY = event.clientY - rect.top;
         camera.handleWheel(event, canvasX, canvasY);
     }, { passive: false });
 
@@ -95,7 +102,7 @@ export function setupInputHandlers(
         event.preventDefault();
         event.stopPropagation();
 
-        const rect = cachedContainerRect;
+        refreshRect();
         for (let i = 0; i < event.changedTouches.length; i++) {
             const t = event.changedTouches[i];
             touchState.activeTouches.set(t.identifier, {
@@ -145,7 +152,6 @@ export function setupInputHandlers(
         if ((event.target as HTMLElement).closest(NON_PAN_SELECTORS)) return;
         event.preventDefault();
 
-        const rect = cachedContainerRect;
         for (let i = 0; i < event.changedTouches.length; i++) {
             const t = event.changedTouches[i];
             touchState.activeTouches.set(t.identifier, {

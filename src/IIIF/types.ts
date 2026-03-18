@@ -214,6 +214,8 @@ export interface PanelOptions {
     parent?: HTMLElement;
     draggable?: boolean;
     resizable?: boolean;
+    collapsible?: boolean;
+    showHeader?: boolean;
     dock?: DockPosition;
 }
 
@@ -222,17 +224,26 @@ export interface PanelElements {
     panel: HTMLDivElement;
     header: HTMLDivElement;
     body: HTMLDivElement;
-    collapseBtn: HTMLButtonElement;
+    collapseBtn?: HTMLButtonElement;
 }
 
 // ============================================================
 // NAVIGATION TYPES
 // ============================================================
 
+/** Vertical axis position */
+export type LookAtV = 'vt' | 'vm' | 'vb';
+/** Horizontal axis position */
+export type LookAtH = 'hl' | 'hm' | 'hr';
+/** Named position shorthand for lookAt() — each axis can be a named position or a pixel coordinate */
+export type LookAtPosition = [LookAtV | number, LookAtH | number];
+
 /** Options for the lookAt() navigation method */
 export interface LookAtOptions {
     /** Target zoom level (scale). 1 = 1:1 pixels, 2 = 2x magnification, 0.5 = zoomed out */
     zoom?: number;
+    /** Fit mode: 'width' fits image width to container, 'height' fits image height. Overrides zoom if set. */
+    fit?: 'width' | 'height';
     /** Animation duration in milliseconds (default: 500) */
     duration?: number;
 }

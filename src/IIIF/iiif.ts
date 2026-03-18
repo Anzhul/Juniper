@@ -13,7 +13,7 @@ import type { WorldPlacement } from './core/iiif-world';
 import { parseIIIFUrl, fetchAnnotationList } from './iiif-parser';
 import type { ParsedManifest, ParsedImageService } from './iiif-parser';
 import { PANEL_CLASS_MAP, PANEL_HIDE_CLASS, PER_INSTANCE_PANELS } from './config';
-import type { IIIFViewerOptions, IIIFViewerPanels, LayoutState, CanvasInfo, LookAtOptions } from './types';
+import type { IIIFViewerOptions, IIIFViewerPanels, LayoutState, CanvasInfo, LookAtOptions, LookAtPosition } from './types';
 import { ViewerUI } from './ui/iiif-viewer-ui';
 import type { ViewerUICallbacks } from './ui/iiif-viewer-ui';
 
@@ -362,6 +362,7 @@ export class IIIFViewer {
             event.preventDefault();
             event.stopPropagation();
 
+            this.cachedContainerRect = this.container.getBoundingClientRect();
             const canvasX = event.clientX - this.cachedContainerRect.left;
             const canvasY = event.clientY - this.cachedContainerRect.top;
 
@@ -386,6 +387,7 @@ export class IIIFViewer {
         });
 
         this.addEventListener(this.container, 'wheel', (event: WheelEvent) => {
+            this.cachedContainerRect = this.container.getBoundingClientRect();
             const canvasX = event.clientX - this.cachedContainerRect.left;
             const canvasY = event.clientY - this.cachedContainerRect.top;
             this.camera.handleWheel(event, canvasX, canvasY);
@@ -398,6 +400,7 @@ export class IIIFViewer {
             event.preventDefault();
             event.stopPropagation();
 
+            this.cachedContainerRect = this.container.getBoundingClientRect();
             const rect = this.cachedContainerRect;
             for (let i = 0; i < event.changedTouches.length; i++) {
                 const t = event.changedTouches[i];
@@ -1020,6 +1023,9 @@ export class IIIFViewer {
      * // Pan to point and zoom to 2x magnification
      * viewer.lookAt(800, 600, { zoom: 2 });
      *
+     * // Pan to point with fit-to-width zoom level
+     * viewer.lookAt(800, 600, { fit: 'width' });
+     *
      * // Quick pan with custom duration
      * viewer.lookAt(800, 600, { duration: 200 });
      *
@@ -1028,22 +1034,48 @@ export class IIIFViewer {
      *     viewer.lookAt(1200, 400, { zoom: 3, duration: 600 });
      * };
      */
-    lookAt(x: number, y: number, options?: LookAtOptions) {
+    lookAt(position: LookAtPosition, options?: LookAtOptions): void;
+    lookAt(x: number, y: number, options?: LookAtOptions): void;
+    lookAt(xOrPos: number | LookAtPosition, yOrOptions?: number | LookAtOptions, maybeOptions?: LookAtOptions) {
+        let x: number, y: number;
+        let options: LookAtOptions | undefined;
+
+        if (Array.isArray(xOrPos)) {
+            options = yOrOptions as LookAtOptions | undefined;
+            const [v, h] = xOrPos;
+            const w = this.world.worldWidth;
+            const wh = this.world.worldHeight;
+            x = typeof h === 'number' ? h : h === 'hl' ? 0 : h === 'hm' ? w / 2 : w;
+            y = typeof v === 'number' ? v : v === 'vt' ? 0 : v === 'vm' ? wh / 2 : wh;
+        } else {
+            x = xOrPos;
+            y = yOrOptions as number;
+            options = maybeOptions;
+        }
+
         const zoom = options?.zoom;
+        const fit = options?.fit;
         const duration = options?.duration ?? 500;
 
-        // Calculate target cameraZ from zoom (scale)
+        // Calculate target cameraZ from zoom, fit mode, or keep current
         let targetZ: number;
-        if (zoom !== undefined) {
+        if (fit === 'width') {
+            const targetScale = this.viewport.containerWidth / this.world.worldWidth;
+            targetZ = this.viewport.containerHeight / (2 * targetScale * this.viewport.getTanHalfFov());
+        } else if (fit === 'height') {
+            const targetScale = this.viewport.containerHeight / this.world.worldHeight;
+            targetZ = this.viewport.containerHeight / (2 * targetScale * this.viewport.getTanHalfFov());
+        } else if (zoom !== undefined) {
             // zoom is scale (CSS pixels per world unit)
             // cameraZ = containerHeight / (2 * scale * tan(fov/2))
             targetZ = this.viewport.containerHeight / (2 * zoom * this.viewport.getTanHalfFov());
-            // Clamp to valid range
-            targetZ = Math.max(this.viewport.minZ, Math.min(this.viewport.maxZ, targetZ));
         } else {
             // Keep current zoom
             targetZ = this.viewport.cameraZ;
         }
+
+        // Clamp to valid range
+        targetZ = Math.max(this.viewport.minZ, Math.min(this.viewport.maxZ, targetZ));
 
         this.camera.to(x, y, targetZ, duration);
         this.markDirty();

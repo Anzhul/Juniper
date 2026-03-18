@@ -116,30 +116,38 @@
 }
 
 /* Navigation Bar (zoom/reset buttons) */
+/* Navigation panel: horizontal layout with separate drag handle */
 .iiif-navigation-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  z-index: 1500;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
 }
-.iiif-navigation-wrapper.dragging {
-  opacity: 0.9;
-  z-index: 3000;
-}
-.iiif-navigation-bar {
+.iiif-navigation-wrapper .iiif-panel-body {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 4px;
-  padding: 6px 6px;
+  padding: 0;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   backdrop-filter: var(--backdrop-filter);
   box-shadow: var(--shadow);
 }
-.iiif-navigation-drag-handle {
-  width: 24px;
+.iiif-navigation-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px;
+}
+/* Generic panel drag handle (used when header is hidden) */
+.iiif-panel-drag-handle {
+  width: 20px;
   align-self: stretch;
+  margin-left: 4px;
   border-radius: var(--border-radius);
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
@@ -154,7 +162,7 @@
   background-repeat: no-repeat;
   background-position: center;
 }
-.iiif-navigation-drag-handle:active {
+.iiif-panel-drag-handle:active {
   cursor: grabbing;
 }
 .iiif-nav-zoom-btn {
@@ -897,7 +905,8 @@ body.iiif-resizing-nesw * {
   max-width: 160px;
 }
 
-.iiif-settings-panel-body {
+.iiif-settings-panel-body,
+.iiif-settings-panel .iiif-panel-body {
   padding: 6px 8px;
 }
 

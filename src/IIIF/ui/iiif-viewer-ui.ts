@@ -152,8 +152,15 @@ export class ViewerUI {
     }
 
     private setupNavigationPanel(): void {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'iiif-navigation-wrapper';
+        const { body } = this.panelManager.createPanel({
+            className: 'iiif-navigation-wrapper',
+            title: 'Navigation',
+            initiallyCollapsed: false,
+            dock: 'bottom-center',
+            resizable: false,
+            collapsible: false,
+            showHeader: false,
+        });
 
         const bar = document.createElement('div');
         bar.className = 'iiif-navigation-bar';
@@ -179,21 +186,7 @@ export class ViewerUI {
         bar.appendChild(zoomIn);
         bar.appendChild(zoomOut);
         bar.appendChild(resetBtn);
-
-        const dragHandle = document.createElement('div');
-        dragHandle.className = 'iiif-navigation-drag-handle';
-
-        wrapper.appendChild(bar);
-        wrapper.appendChild(dragHandle);
-
-        this.panelManager.makePanelDraggable(wrapper, dragHandle);
-
-        const dock = this.panelManager.getDocks().get('bottom-center');
-        if (dock) {
-            dock.appendChild(wrapper);
-        } else {
-            this.container.appendChild(wrapper);
-        }
+        body.appendChild(bar);
     }
 
     private setupTOC(): void {
@@ -331,17 +324,17 @@ export class ViewerUI {
 
         // Override collapse button: use capture phase so this fires BEFORE
         // the default handler from createPanel (which is in bubble phase).
-        collapseBtn.addEventListener('click', (e) => {
+        collapseBtn!.addEventListener('click', (e) => {
             e.stopImmediatePropagation();
             if (this.cb.getComparisonController()) {
                 // Toggle collapse state - don't exit compare mode
                 const body = this.comparePanel!.querySelector('.iiif-panel-body');
                 const isCollapsed = body?.classList.toggle('collapsed') ?? false;
-                collapseBtn.textContent = isCollapsed ? '+' : '\u2212';
+                collapseBtn!.textContent = isCollapsed ? '+' : '\u2212';
             } else {
                 // Enter compare mode
                 this.cb.enterCompareMode();
-                collapseBtn.textContent = '\u2212';
+                collapseBtn!.textContent = '\u2212';
                 this.comparePanel!.classList.add('active');
                 const body = this.comparePanel!.querySelector('.iiif-panel-body');
                 body?.classList.remove('collapsed');
@@ -375,26 +368,15 @@ export class ViewerUI {
             }
         });
 
-        // Create tools panel
-        this.settingsPanel = document.createElement('div');
-        this.settingsPanel.className = 'iiif-panel iiif-settings-panel';
-
-        const header = document.createElement('div');
-        header.className = 'iiif-panel-header iiif-settings-panel-header';
-
-        const title = document.createElement('span');
-        title.textContent = 'Settings';
-        header.appendChild(title);
-
-        const collapseBtn = document.createElement('button');
-        collapseBtn.className = 'iiif-panel-collapse iiif-settings-panel-collapse';
-        collapseBtn.textContent = '+';
-        header.appendChild(collapseBtn);
-
-        this.settingsPanel.appendChild(header);
-
-        this.settingsPanelBody = document.createElement('div');
-        this.settingsPanelBody.className = 'iiif-panel-body iiif-settings-panel-body collapsed';
+        const { panel, body } = this.panelManager.createPanel({
+            className: 'iiif-settings-panel',
+            title: 'Settings',
+            initiallyCollapsed: true,
+            dock: 'top-right',
+            resizable: false,
+        });
+        this.settingsPanel = panel;
+        this.settingsPanelBody = body;
 
         // Only show toggles for panels that are included
         const panelConfigs: { label: string; defaultVisible: boolean; containerClass: string }[] = [];
@@ -435,13 +417,13 @@ export class ViewerUI {
                 }
             });
 
-            this.settingsPanelBody.appendChild(item);
+            body.appendChild(item);
         }
 
         // --- Divider ---
         const divider = document.createElement('div');
         divider.className = 'iiif-settings-divider';
-        this.settingsPanelBody.appendChild(divider);
+        body.appendChild(divider);
 
         // --- Background color picker ---
         const colorItem = document.createElement('label');
@@ -474,9 +456,7 @@ export class ViewerUI {
 
         colorItem.appendChild(colorLabel);
         colorItem.appendChild(colorInput);
-        this.settingsPanelBody.appendChild(colorItem);
-
-        this.settingsPanel.appendChild(this.settingsPanelBody);
+        body.appendChild(colorItem);
 
         // --- Icon button row at bottom of panel ---
         const btnRow = document.createElement('div');
@@ -571,18 +551,7 @@ export class ViewerUI {
         btnRow.appendChild(themeBtn);
         btnRow.appendChild(this.fullscreenBtn);
 
-        this.settingsPanel.appendChild(btnRow);
-
-        this.addEvent(collapseBtn, 'click', () => {
-            this.settingsPanelBody!.classList.toggle('collapsed');
-            collapseBtn.textContent = this.settingsPanelBody!.classList.contains('collapsed') ? '+' : '\u2212';
-        });
-
-        // Make settings panel draggable
-        this.panelManager.makePanelDraggable(this.settingsPanel, header);
-
-        // Settings panel in top-right dock
-        this.panelManager.getDocks().get('top-right')!.appendChild(this.settingsPanel);
+        panel.appendChild(btnRow);
     }
 
     // ============================================================
