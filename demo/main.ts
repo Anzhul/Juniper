@@ -39,81 +39,189 @@ if (container) {
 
     loadPromise
         .then(() => {
-            // Custom HTML annotations (coordinates are in image pixels)
+            // Helper: create a white circle with an expanding ripple ring
+            // Size is in world (image pixel) units — the overlay manager scales it
+            const makeCircle = () => {
+                const el = document.createElement('div');
+                el.style.width = '100%';
+                el.style.height = '100%';
+                el.style.position = 'relative';
+                el.style.cursor = 'pointer';
+                el.innerHTML = `
+                    <div style="
+                        position:absolute; inset:15%;
+                        background: radial-gradient(circle, #ffffff, #ffffffcc);
+                        border-radius: 50%;
+                        border: 2px solid rgba(255, 255, 255, 0.6);
+                        box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+                    "></div>
+                    <div style="
+                        position:absolute; inset:0;
+                        border-radius:50%;
+                        border: 2px solid rgba(255, 255, 255, 0.8);
+                        transform-origin: center center;
+                        animation: iiif-ann-ripple 2s ease-out infinite;
+                    "></div>
+                `;
+                return el;
+            };
 
-            // Fade transition
-            viewer.addAnnotation(200, 100, 400, 60, 'Detail of interest', {
-                targetUrl: url, // Only show on this manifest
-                targetPage: 0, // Only show on the first canvas
-                id: 'label-1',
-                type: 'Detail Notes',
-                color: '#3e73c9',
-                style: {
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    color: '#fff',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    fontFamily: 'sans-serif',
-                },
-                activeClass: 'iiif-ann-fade-in',
-                inactiveClass: 'iiif-ann-fade-out',
-            });
+            // Helper: create a popup panel with custom HTML content
+            const makePopup = (title: string, body: string) => {
+                const el = document.createElement('div');
+                el.innerHTML = `
+                    <h4 style="margin:0 0 8px; font-family:sans-serif;">${title}</h4>
+                    ${body}
+                `;
+                return el;
+            };
 
-            // Shared popup content for demos
-            const popupContent = document.createElement('div');
-            popupContent.innerHTML = `
-                <h4>Point of Interest</h4>
-                <img src="https://iiif.harvardartmuseums.org/manifests/object/299843/canvas/canvas-47174896/thumbnail" alt="Detail thumbnail" />
-                <p>This area shows a detail from the artwork. Click the marker again or elsewhere to dismiss.</p>
-                <a href="https://harvardartmuseums.org" target="_blank">Learn more</a>
-            `;
-
-            // Custom HTML element annotation with continuous animation
-            const hotspot = document.createElement('div');
-            hotspot.innerHTML = `
-                <div style="
-                    width: 40px; height: 40px;
-                    background: radial-gradient(circle, #ffffff, #ffffff7a);
-                    border-radius: 50%;
-                    border: 2px solid rgba(255, 255, 255, 0);
-                    animation: iiif-ann-pulse 2s ease-in-out infinite;
-                "></div>
-            `;
-            viewer.addAnnotation(800, 600, 0, 0, hotspot, {
-                targetUrl: url,
-                targetPage: 0,
-                id: 'hotspot-1',
-                type: 'Hotspots',
-                color: '#965a5a',
+            // 1. Circle with image popup
+            viewer.addAnnotation(300, 200, 16, 16, makeCircle(), {
+                targetUrl: url, targetPage: 0,
+                id: 'circle-1',
+                type: 'Circles',
+                color: '#ffffff',
                 scaleWithZoom: true,
                 style: { overflow: 'visible' },
-                activeClass: 'iiif-ann-fade-in',
-                inactiveClass: 'iiif-ann-fade-out',
-                popup: popupContent,
-                popupPosition: { x: 48, y: 0 },
+                activeClass: 'iiif-ann-translate-in',
+                inactiveClass: 'iiif-ann-translate-out',
+                popup: makePopup('Detail View', `
+                    <img src="https://iiif.harvardartmuseums.org/manifests/object/299843/canvas/canvas-47174896/thumbnail"
+                         alt="Detail" style="width:100%; border-radius:4px;" />
+                    <p style="margin:8px 0 0; font-size:13px; font-family:sans-serif;">
+                        A closer look at this area of the artwork.
+                    </p>
+                `),
+                popupPosition: { x: 38, y: 0 },
             });
 
-            // Slide + fade transition (fixed-size pin with rich popup)
-            viewer.addAnnotation(1200, 400, 0, 0, '📍', {
-                targetUrl: url,
-                targetPage: 0, // Only show on the first canvas
-                id: 'pin-1',
-                type: 'Markers',
-                color: '#4caf50',
-                scaleWithZoom: false,
-                style: { fontSize: '24px', overflow: 'visible' },
-                activeClass: 'iiif-ann-slide-in',
-                inactiveClass: 'iiif-ann-slide-out',
-                popup: popupContent,
-                popupPosition: { x: 28, y: 0 },
+            // 2. Circle with animated gradient popup
+            viewer.addAnnotation(800, 150, 16, 16, makeCircle(), {
+                targetUrl: url, targetPage: 0,
+                id: 'circle-2',
+                type: 'Circles',
+                color: '#ffffff',
+                scaleWithZoom: true,
+                style: { overflow: 'visible' },
+                activeClass: 'iiif-ann-translate-in',
+                inactiveClass: 'iiif-ann-translate-out',
+                popup: makePopup('Color Analysis', `
+                    <div style="
+                        width:100%; height:80px; border-radius:6px;
+                        background: linear-gradient(270deg, #00e5ff, #764ba2, #ff6b6b, #00e5ff);
+                        background-size: 600% 600%;
+                        animation: iiif-ann-gradient-shift 4s ease infinite;
+                    "></div>
+                    <p style="margin:8px 0 0; font-size:12px; font-family:sans-serif; opacity:0.8;">
+                        Animated palette extracted from this region.
+                    </p>
+                `),
+                popupPosition: { x: 38, y: 0 },
             });
-            // lookAt demos: named positions, mixed, and explicit coordinates
+
+            // 3. Circle with text description popup
+            viewer.addAnnotation(1100, 500, 16, 16, makeCircle(), {
+                targetUrl: url, targetPage: 0,
+                id: 'circle-3',
+                type: 'Circles',
+                color: '#ffffff',
+                scaleWithZoom: true,
+                style: { overflow: 'visible' },
+                activeClass: 'iiif-ann-translate-in',
+                inactiveClass: 'iiif-ann-translate-out',
+                popup: makePopup('Technique', `
+                    <p style="margin:0 0 6px; font-size:13px; font-family:sans-serif; line-height:1.5;">
+                        The brushwork in this area shows a layered impasto technique,
+                        building up texture through successive applications of paint.
+                    </p>
+                    <p style="margin:0; font-size:12px; font-family:sans-serif; opacity:0.6;">
+                        Oil on canvas, circa 1880
+                    </p>
+                `),
+                popupPosition: { x: 38, y: 0 },
+            });
+
+            // 4. Circle with comparison layout popup
+            viewer.addAnnotation(500, 600, 16, 16, makeCircle(), {
+                targetUrl: url, targetPage: 0,
+                id: 'circle-4',
+                type: 'Circles',
+                color: '#ffffff',
+                scaleWithZoom: true,
+                style: { overflow: 'visible' },
+                activeClass: 'iiif-ann-translate-in',
+                inactiveClass: 'iiif-ann-translate-out',
+                popup: makePopup('Before & After', `
+                    <div style="display:flex; gap:8px;">
+                        <div style="
+                            flex:1; height:80px; border-radius:4px;
+                            background:#2a2a2a; display:flex; align-items:center; justify-content:center;
+                            color:#888; font-size:11px; font-family:sans-serif;
+                        ">Before restoration</div>
+                        <div style="
+                            flex:1; height:80px; border-radius:4px;
+                            background:#3a3a3a; display:flex; align-items:center; justify-content:center;
+                            color:#aaa; font-size:11px; font-family:sans-serif;
+                        ">After restoration</div>
+                    </div>
+                `),
+                popupPosition: { x: 38, y: 0 },
+            });
+
+            // 5. Circle with link list popup
+            viewer.addAnnotation(200, 700, 16, 16, makeCircle(), {
+                targetUrl: url, targetPage: 0,
+                id: 'circle-5',
+                type: 'Circles',
+                color: '#ffffff',
+                scaleWithZoom: true,
+                style: { overflow: 'visible' },
+                activeClass: 'iiif-ann-translate-in',
+                inactiveClass: 'iiif-ann-translate-out',
+                popup: makePopup('Related Works', `
+                    <ul style="margin:0; padding:0 0 0 16px; font-size:13px; font-family:sans-serif; line-height:2;">
+                        <li><a href="https://harvardartmuseums.org" target="_blank" style="color:#4fc3f7;">Study sketch (1878)</a></li>
+                        <li><a href="https://harvardartmuseums.org" target="_blank" style="color:#4fc3f7;">Companion piece</a></li>
+                        <li><a href="https://harvardartmuseums.org" target="_blank" style="color:#4fc3f7;">Artist biography</a></li>
+                    </ul>
+                `),
+                popupPosition: { x: 38, y: 0 },
+            });
+
+            // 6. Circle with stats popup
+            viewer.addAnnotation(900, 750, 16, 16, makeCircle(), {
+                targetUrl: url, targetPage: 0,
+                id: 'circle-6',
+                type: 'Circles',
+                color: '#ffffff',
+                scaleWithZoom: true,
+                style: { overflow: 'visible' },
+                activeClass: 'iiif-ann-translate-in',
+                inactiveClass: 'iiif-ann-translate-out',
+                popup: makePopup('Condition Report', `
+                    <div style="font-family:sans-serif; font-size:13px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                            <span>Surface wear</span>
+                            <span style="color:#ff9800; font-weight:600;">Moderate</span>
+                        </div>
+                        <div style="height:6px; background:#333; border-radius:3px; overflow:hidden; margin-bottom:12px;">
+                            <div style="width:55%; height:100%; background:linear-gradient(90deg, #4caf50, #ff9800); border-radius:3px;"></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                            <span>Color fidelity</span>
+                            <span style="color:#4caf50; font-weight:600;">Good</span>
+                        </div>
+                        <div style="height:6px; background:#333; border-radius:3px; overflow:hidden;">
+                            <div style="width:82%; height:100%; background:linear-gradient(90deg, #4caf50, #8bc34a); border-radius:3px;"></div>
+                        </div>
+                    </div>
+                `),
+                popupPosition: { x: 38, y: 0 },
+            });
+
+            // Start view
             viewer.lookAt([600, 'hm'], { fit: 'width' });
-            // viewer.lookAt(['vm', 800], { fit: 'width' });  // named vertical + pixel horizontal
-            // viewer.lookAt([400, 'hm'], { zoom: 2 });       // pixel vertical + named horizontal
-            // viewer.lookAt(['vt', 'hl'], { zoom: 2 });
-            // viewer.lookAt(1200, 400, { zoom: 3 });          // explicit coordinates still work
         })
         .catch((error) => console.error('Error loading:', error));
 }

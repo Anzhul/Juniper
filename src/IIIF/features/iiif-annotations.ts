@@ -175,14 +175,20 @@ export class AnnotationManager {
         }
 
         // Text or empty content: use a default styled container
+        const isPoint = annotation.width === 0 && annotation.height === 0;
         const container = document.createElement('div');
         container.style.boxSizing = 'border-box';
-        container.style.width = '100%';
-        container.style.height = '100%';
 
-        // Apply default styles
-        container.style.border = '2px solid #007bff';
-        container.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+        if (isPoint) {
+            // Point annotation: no box styles, let content determine size
+            container.style.overflow = 'visible';
+        } else {
+            // Region annotation: fill the overlay box with default styles
+            container.style.width = '100%';
+            container.style.height = '100%';
+            container.style.border = '2px solid #007bff';
+            container.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+        }
 
         // Apply custom styles
         if (annotation.style) {
@@ -196,10 +202,12 @@ export class AnnotationManager {
         // Add text content if provided
         if (annotation.content?.text) {
             const contentWrapper = document.createElement('div');
-            contentWrapper.style.width = '100%';
-            contentWrapper.style.height = '100%';
-            contentWrapper.style.overflow = 'auto';
-            contentWrapper.style.padding = '8px';
+            if (!isPoint) {
+                contentWrapper.style.width = '100%';
+                contentWrapper.style.height = '100%';
+                contentWrapper.style.overflow = 'auto';
+                contentWrapper.style.padding = '8px';
+            }
             contentWrapper.textContent = annotation.content.text;
             contentWrapper.style.fontSize = '14px';
             contentWrapper.style.fontFamily = 'Arial, sans-serif';

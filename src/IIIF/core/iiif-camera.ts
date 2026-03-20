@@ -502,10 +502,15 @@ export class Camera {
         // Spring zoom to target
         state.cameraZSpring.springTo(clampedZ);
 
-        // Update anchor to pinch midpoint (zoom focal point)
-        const worldPoint = this.viewport.canvasToWorldPoint(centerCanvasX, centerCanvasY);
-        state.anchorWorldX = worldPoint.x;
-        state.anchorWorldY = worldPoint.y;
+        // Only set anchor on first pinch frame — recalculating every frame
+        // causes drift because the springs shift the viewport mid-animation,
+        // making canvasToWorldPoint return a different world coordinate for
+        // the same screen position.
+        if (wasIdle || isFirstInteraction) {
+            const worldPoint = this.viewport.canvasToWorldPoint(centerCanvasX, centerCanvasY);
+            state.anchorWorldX = worldPoint.x;
+            state.anchorWorldY = worldPoint.y;
+        }
 
         // Spring canvas position to midpoint (enables simultaneous pan)
         state.canvasXSpring.springTo(centerCanvasX);

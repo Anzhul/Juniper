@@ -998,6 +998,7 @@ export class IIIFViewer {
     fitToWorld() {
         const ww = this.world.worldWidth;
         const wh = this.world.worldHeight;
+        if (ww <= 0 || wh <= 0) return;
         const targetScale = Math.min(
             this.viewport.containerWidth / ww,
             this.viewport.containerHeight / wh,
@@ -1040,11 +1041,12 @@ export class IIIFViewer {
         let x: number, y: number;
         let options: LookAtOptions | undefined;
 
+        const w = this.world.worldWidth;
+        const wh = this.world.worldHeight;
+
         if (Array.isArray(xOrPos)) {
             options = yOrOptions as LookAtOptions | undefined;
             const [v, h] = xOrPos;
-            const w = this.world.worldWidth;
-            const wh = this.world.worldHeight;
             x = typeof h === 'number' ? h : h === 'hl' ? 0 : h === 'hm' ? w / 2 : w;
             y = typeof v === 'number' ? v : v === 'vt' ? 0 : v === 'vm' ? wh / 2 : wh;
         } else {
@@ -1060,10 +1062,12 @@ export class IIIFViewer {
         // Calculate target cameraZ from zoom, fit mode, or keep current
         let targetZ: number;
         if (fit === 'width') {
-            const targetScale = this.viewport.containerWidth / this.world.worldWidth;
+            if (w <= 0) return;
+            const targetScale = this.viewport.containerWidth / w;
             targetZ = this.viewport.containerHeight / (2 * targetScale * this.viewport.getTanHalfFov());
         } else if (fit === 'height') {
-            const targetScale = this.viewport.containerHeight / this.world.worldHeight;
+            if (wh <= 0) return;
+            const targetScale = this.viewport.containerHeight / wh;
             targetZ = this.viewport.containerHeight / (2 * targetScale * this.viewport.getTanHalfFov());
         } else if (zoom !== undefined) {
             // zoom is scale (CSS pixels per world unit)
@@ -1773,5 +1777,11 @@ export class IIIFViewer {
         this.ui.cvController?.destroy();
         this.overlayManager = undefined;
         this.annotationManager = undefined;
+
+        // Clean up all panel DOM nodes (panels, docks, spacers, drag placeholders)
+        // to prevent ghost clones when frameworks re-mount the viewer
+        this.container.querySelectorAll(
+            '.iiif-panel, .iiif-dock, .iiif-dock-spacer'
+        ).forEach(el => el.remove());
     }
 }

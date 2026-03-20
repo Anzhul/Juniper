@@ -93,6 +93,7 @@ export class Viewport {
    * Sets center to the middle of the given world dimensions.
    */
   fitToWorld(worldWidth: number, worldHeight: number) {
+    if (worldWidth <= 0 || worldHeight <= 0) return this;
     const targetScale = Math.min(
       this.containerWidth / worldWidth,
       this.containerHeight / worldHeight
