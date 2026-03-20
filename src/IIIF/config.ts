@@ -33,6 +33,8 @@ export const TOUCH_CONFIG = {
     DOUBLE_TAP_DISTANCE_SQ: 900,
     /** Zoom factor applied on double-tap */
     DOUBLE_TAP_ZOOM_FACTOR: 2.0,
+    /** Amplifies the pinch gesture ratio (>1 = more zoom per finger movement) */
+    PINCH_SENSITIVITY: 1.8,
 } as const;
 
 // ============================================================

@@ -3,7 +3,7 @@ import { World } from './iiif-world';
 import type { EasingFunction } from './easing';
 import { easeOutQuart } from './easing';
 import { Spring } from './spring';
-import { CAMERA_CONFIG } from '../config';
+import { CAMERA_CONFIG, TOUCH_CONFIG } from '../config';
 
 /**
  * Camera system with spring-based interactive animations and easing-based programmatic animations.
@@ -488,8 +488,9 @@ export class Camera {
             state.cameraZSpring.current.time = now;
         }
 
-        // Calculate target scale from current scale * pinch ratio
-        const newScale = this.viewport.scale * scaleFactor;
+        // Amplify the raw pinch ratio so small finger movements produce more zoom
+        const amplified = 1 + (scaleFactor - 1) * TOUCH_CONFIG.PINCH_SENSITIVITY;
+        const newScale = this.viewport.scale * amplified;
         const clampedScale = Math.max(
             this.viewport.minScale,
             Math.min(this.viewport.maxScale, newScale)
