@@ -1,10 +1,17 @@
 {
   "name": "juniper-iiif",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "High-performance IIIF viewer with WebGPU/WebGL rendering, annotations, and comparison mode",
   "author": "Anzhu <anzhul@umich.edu>",
   "license": "MIT",
-  "keywords": ["iiif", "webgpu", "webgl", "image-viewer", "annotations", "digital-humanities"],
+  "keywords": [
+    "iiif",
+    "webgpu",
+    "webgl",
+    "image-viewer",
+    "annotations",
+    "digital-humanities"
+  ],
   "type": "module",
   "main": "./dist/iiif-viewer.umd.cjs",
   "module": "./dist/iiif-viewer.js",
