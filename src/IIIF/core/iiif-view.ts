@@ -92,15 +92,19 @@ export class Viewport {
    * Fit the viewport so that a world region fills the container.
    * Sets center to the middle of the given world dimensions.
    */
-  fitToWorld(worldWidth: number, worldHeight: number) {
+  fitToWorld(worldWidth: number, worldHeight: number, minZoom: number = 0.2, maxZoom: number = 10) {
     const targetScale = Math.min(
       this.containerWidth / worldWidth,
       this.containerHeight / worldHeight
     );
     this.cameraZ = this.containerHeight / (2 * targetScale * this.tanHalfFov);
 
-    this.maxZ = this.cameraZ * 5;
-    this.minZ = this.cameraZ * 0.1;
+    // minZoom/maxZoom are scale multipliers relative to fit-to-view.
+    // cameraZ is inversely proportional to scale, so:
+    //   maxZ (zoomed out) = fitZ / minZoom
+    //   minZ (zoomed in)  = fitZ / maxZoom
+    this.maxZ = this.cameraZ / minZoom;
+    this.minZ = this.cameraZ / maxZoom;
     this.near = this.minZ * 0.01;
     this.far = this.maxZ * 2;
 

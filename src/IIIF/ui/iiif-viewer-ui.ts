@@ -11,10 +11,25 @@ import { AnnotationManager, MOTIVATION_COLORS, DEFAULT_MOTIVATION_COLOR } from '
 import { IIIFOverlayManager } from '../features/iiif-overlay';
 import { EYE_SVG } from './icons';
 import type { ParsedManifest, ParsedRange, ParsedCanvas } from '../iiif-parser';
-import type { IIIFViewerOptions, IIIFViewerPanels, LayoutState, CustomAnnotationSpec } from '../types';
+import type { IIIFViewerOptions, IIIFViewerPanels, PanelVisibility, PanelVisibilityConfig, LayoutState, CustomAnnotationSpec } from '../types';
 
 // Dynamic import types (for lazy loading modules)
 import type { CVController } from '../features/iiif-cv';
+
+/**
+ * Resolve a PanelVisibilityConfig into per-breakpoint PanelVisibility values.
+ * Falls back: mobile → tablet → desktop.
+ */
+function resolveResponsive(config: PanelVisibilityConfig | undefined): { desktop: PanelVisibility; tablet: PanelVisibility; mobile: PanelVisibility } | undefined {
+    if (config === undefined) return undefined;
+    if (typeof config === 'string') {
+        return { desktop: config, tablet: config, mobile: config };
+    }
+    const desktop = config.desktop ?? 'show';
+    const tablet = config.tablet ?? desktop;
+    const mobile = config.mobile ?? tablet;
+    return { desktop, tablet, mobile };
+}
 
 export interface ViewerUICallbacks {
     markDirty(): void;
@@ -28,8 +43,9 @@ export interface ViewerUICallbacks {
     exitCompareMode(): void;
     saveLayout(): LayoutState;
     loadLayout(state: LayoutState): Promise<void>;
+    getWheelZoomFactor(): number;
     getViewportScale(): number;
-    getRenderer(): { setClearColor(r: number, g: number, b: number): void } | undefined;
+    getRenderer(): { setClearColor(r: number, g: number, b: number): void; canvas: HTMLCanvasElement } | undefined;
     getAnnotationManager(): AnnotationManager | undefined;
     getOverlayManager(): IIIFOverlayManager | undefined;
     getManifest(): ParsedManifest | undefined;
@@ -41,6 +57,9 @@ export interface ViewerUICallbacks {
     getComparisonController(): { setBackgroundColor(r: number, g: number, b: number): void } | undefined;
     isMobileOrTablet(): boolean;
     getCanvasIdToIndex(): Map<string, number>;
+    getWorldDimensions(): { width: number; height: number };
+    getViewportBounds(): { left: number; top: number; right: number; bottom: number; width: number; height: number };
+    navigateTo(centerX: number, centerY: number): void;
 }
 
 export class ViewerUI {
@@ -55,6 +74,7 @@ export class ViewerUI {
     cvPanel?: HTMLDivElement;
     cvController?: CVController;
     comparePanel?: HTMLDivElement;
+    minimapPanel?: HTMLDivElement;
     settingsPanel?: HTMLDivElement;
     settingsPanelBody?: HTMLDivElement;
     fullscreenBtn?: HTMLButtonElement;
@@ -71,11 +91,23 @@ export class ViewerUI {
 
     private panelManager: PanelManager;
     private container: HTMLElement;
-    private panels: IIIFViewerPanels;
     // @ts-ignore -- reserved for future use
     private config: IIIFViewerOptions;
     private abortController: AbortController;
     private cb: ViewerUICallbacks;
+
+    // Resolved responsive panel configs (cached at construction)
+    private resolvedPanels: { [K in keyof IIIFViewerPanels]?: { desktop: PanelVisibility; tablet: PanelVisibility; mobile: PanelVisibility } } = {};
+
+    // Minimap state
+    private minimapRect?: HTMLDivElement;
+    private minimapImgContainer?: HTMLDivElement;
+    private minimapDragging = false;
+
+    // Rotation/mirror state
+    private rotation = 0;       // 0, 90, 180, 270
+    private mirrorX = false;    // horizontal flip
+    private mirrorY = false;    // vertical flip
 
     /** Get the docks map */
     get docks(): Map<string, HTMLDivElement> {
@@ -90,11 +122,16 @@ export class ViewerUI {
         cb: ViewerUICallbacks,
     ) {
         this.container = container;
-        this.panels = panels;
         this.config = config;
         this.abortController = abortController;
         this.cb = cb;
         this.panelManager = new PanelManager(container, abortController);
+
+        // Pre-resolve responsive panel configs
+        const panelKeys: (keyof IIIFViewerPanels)[] = ['settings', 'navigation', 'pages', 'minimap', 'manifest', 'annotations', 'gesture', 'compare'];
+        for (const key of panelKeys) {
+            this.resolvedPanels[key] = resolveResponsive(panels[key]);
+        }
     }
 
     /**
@@ -121,14 +158,56 @@ export class ViewerUI {
         // Create docks before any panels so dock assignments work
         this.setupDocks();
 
-        if (this.panels.pages !== undefined) this.setupCanvasNav();
-        if (this.panels.navigation !== undefined) this.setupTOC();
+        if (this.resolvedPanels.pages) this.setupCanvasNav();
+        if (this.resolvedPanels.minimap) this.setupMinimapPanel();
+        if (this.resolvedPanels.navigation) this.setupTOC();
         this.setupNavigationPanel();
-        if (this.panels.settings !== undefined) this.setupSettingsPanel();
-        if (this.panels.annotations !== undefined) this.setupAnnotationPanel();
-        if (this.panels.manifest !== undefined) this.setupManifestPanel();
-        if (this.panels.gesture !== undefined && !this.cb.isMobileOrTablet()) this.setupCVPanel();
-        if (this.panels.compare !== undefined) this.setupComparePanel();
+        if (this.resolvedPanels.settings) this.setupSettingsPanel();
+        if (this.resolvedPanels.annotations) this.setupAnnotationPanel();
+        if (this.resolvedPanels.manifest) this.setupManifestPanel();
+        if (this.resolvedPanels.gesture && !this.cb.isMobileOrTablet()) this.setupCVPanel();
+        if (this.resolvedPanels.compare) this.setupComparePanel();
+
+        // Apply responsive visibility classes
+        this.applyResponsiveClasses();
+    }
+
+    /**
+     * Apply CSS classes to the container for responsive panel hiding.
+     * Maps panel configs to classes like `hide-pages-mobile`, `hide-minimap-tablet`.
+     */
+    private applyResponsiveClasses(): void {
+        const panelClassMap: { key: keyof IIIFViewerPanels; cssClass: string }[] = [
+            { key: 'settings', cssClass: 'settings' },
+            { key: 'navigation', cssClass: 'navigation' },
+            { key: 'pages', cssClass: 'pages' },
+            { key: 'minimap', cssClass: 'minimap' },
+            { key: 'manifest', cssClass: 'manifest' },
+            { key: 'annotations', cssClass: 'annotations' },
+            { key: 'gesture', cssClass: 'vision' },
+            { key: 'compare', cssClass: 'compare' },
+        ];
+
+        for (const { key, cssClass } of panelClassMap) {
+            const resolved = this.resolvedPanels[key];
+            if (!resolved) continue;
+
+            // Apply hide classes per breakpoint
+            if (resolved.mobile === 'hide') {
+                this.container.classList.add(`hide-${cssClass}-mobile`);
+            }
+            if (resolved.tablet === 'hide') {
+                this.container.classList.add(`hide-${cssClass}-tablet`);
+            }
+            if (resolved.desktop === 'hide') {
+                this.container.classList.add(`hide-${cssClass}-desktop`);
+            }
+        }
+    }
+
+    /** Get the desktop PanelVisibility for a panel key */
+    private getDesktopVisibility(key: keyof IIIFViewerPanels): PanelVisibility | undefined {
+        return this.resolvedPanels[key]?.desktop;
     }
 
     // ============================================================
@@ -143,12 +222,222 @@ export class ViewerUI {
         const { panel, body } = this.panelManager.createPanel({
             className: 'iiif-canvas-nav',
             title: 'Pages',
-            initiallyCollapsed: this.panels.pages === 'hide' || this.panels.pages === 'show-closed',
+            initiallyCollapsed: this.getDesktopVisibility('pages') === 'hide' || this.getDesktopVisibility('pages') === 'show-closed',
             dock: 'bottom-left',
         });
         this.canvasNavContainer = panel;
         this.canvasNavList = body;
         this.canvasNavList.classList.add('iiif-canvas-nav-list');
+    }
+
+    private setupMinimapPanel(): void {
+        const { panel, body } = this.panelManager.createPanel({
+            className: 'iiif-minimap',
+            title: 'Map',
+            initiallyCollapsed: this.getDesktopVisibility('minimap') === 'hide' || this.getDesktopVisibility('minimap') === 'show-closed',
+            dock: 'bottom-left',
+        });
+        this.minimapPanel = panel;
+
+        // Image container with viewport rect overlay
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'iiif-minimap-view';
+        body.appendChild(imgContainer);
+        this.minimapImgContainer = imgContainer;
+
+        // Thumbnail image (updated when canvas changes)
+        const img = document.createElement('img');
+        img.className = 'iiif-minimap-img';
+        img.alt = 'Minimap';
+        img.draggable = false;
+        img.addEventListener('load', () => this.updateMinimap());
+        imgContainer.appendChild(img);
+
+        // Viewport rectangle
+        const rect = document.createElement('div');
+        rect.className = 'iiif-minimap-rect';
+        imgContainer.appendChild(rect);
+        this.minimapRect = rect;
+
+        // Drag handling
+        this.setupMinimapDrag(imgContainer);
+
+        // Rotate/mirror toolbar
+        const toolbar = document.createElement('div');
+        toolbar.className = 'iiif-minimap-toolbar';
+
+        const rotateCCW = document.createElement('button');
+        rotateCCW.className = 'iiif-minimap-btn';
+        rotateCCW.title = 'Rotate Left';
+        rotateCCW.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`;
+        rotateCCW.addEventListener('click', () => {
+            this.rotation = (this.rotation + 270) % 360;
+            this.applyCanvasTransform();
+        });
+
+        const rotateCW = document.createElement('button');
+        rotateCW.className = 'iiif-minimap-btn';
+        rotateCW.title = 'Rotate Right';
+        rotateCW.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg>`;
+        rotateCW.addEventListener('click', () => {
+            this.rotation = (this.rotation + 90) % 360;
+            this.applyCanvasTransform();
+        });
+
+        const mirrorBtn = document.createElement('button');
+        mirrorBtn.className = 'iiif-minimap-btn';
+        mirrorBtn.title = 'Mirror Horizontal';
+        mirrorBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 7 2 12 8 17"/><polyline points="16 7 22 12 16 17"/><line x1="12" y1="2" x2="12" y2="22"/></svg>`;
+        mirrorBtn.addEventListener('click', () => {
+            this.mirrorX = !this.mirrorX;
+            this.applyCanvasTransform();
+        });
+
+        const mirrorYBtn = document.createElement('button');
+        mirrorYBtn.className = 'iiif-minimap-btn';
+        mirrorYBtn.title = 'Mirror Vertical';
+        mirrorYBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 8 12 2 17 8"/><polyline points="7 16 12 22 17 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg>`;
+        mirrorYBtn.addEventListener('click', () => {
+            this.mirrorY = !this.mirrorY;
+            this.applyCanvasTransform();
+        });
+
+        toolbar.appendChild(rotateCCW);
+        toolbar.appendChild(rotateCW);
+        toolbar.appendChild(mirrorBtn);
+        toolbar.appendChild(mirrorYBtn);
+        body.appendChild(toolbar);
+    }
+
+    /** Get the current rotation in degrees (0, 90, 180, 270) */
+    getRotation(): number { return this.rotation; }
+    /** Get whether horizontal mirror is active */
+    getMirrorX(): boolean { return this.mirrorX; }
+    /** Get whether vertical mirror is active */
+    getMirrorY(): boolean { return this.mirrorY; }
+
+    /**
+     * Transform screen-space input coords to compensate for CSS rotation/mirror.
+     * Inverts the visual CSS transform so panning/zooming feels natural.
+     */
+    transformInput(x: number, y: number, containerW: number, containerH: number): { x: number; y: number } {
+        // First undo mirror
+        if (this.mirrorX) x = containerW - x;
+        if (this.mirrorY) y = containerH - y;
+
+        // Then undo rotation (inverse of the CSS rotation)
+        const cx = containerW / 2;
+        const cy = containerH / 2;
+        const dx = x - cx;
+        const dy = y - cy;
+
+        switch (this.rotation) {
+            case 90:  return { x: cx + dy,  y: cy - dx };
+            case 180: return { x: cx - dx,  y: cy - dy };
+            case 270: return { x: cx - dy,  y: cy + dx };
+            default:  return { x, y };
+        }
+    }
+
+    private applyCanvasTransform(): void {
+        const renderer = this.cb.getRenderer();
+        if (!renderer) return;
+
+        const transforms: string[] = [];
+        if (this.rotation !== 0) {
+            transforms.push(`rotate(${this.rotation}deg)`);
+        }
+        if (this.mirrorX) {
+            transforms.push('scaleX(-1)');
+        }
+        if (this.mirrorY) {
+            transforms.push('scaleY(-1)');
+        }
+
+        renderer.canvas.style.transform = transforms.length > 0 ? transforms.join(' ') : '';
+
+        // Also transform the minimap thumbnail to match
+        const img = this.minimapImgContainer?.querySelector('img');
+        if (img) {
+            img.style.transform = transforms.length > 0 ? transforms.join(' ') : '';
+        }
+    }
+
+    /** Update minimap thumbnail when canvas changes */
+    updateMinimapThumbnail(): void {
+        if (!this.minimapImgContainer) return;
+        const img = this.minimapImgContainer.querySelector('img');
+        if (!img) return;
+
+        const manifest = this.cb.getManifest();
+        const canvasIndex = this.cb.getCurrentCanvasIndex();
+        if (!manifest || canvasIndex < 0 || canvasIndex >= manifest.canvases.length) {
+            img.style.display = 'none';
+            return;
+        }
+
+        const canvas = manifest.canvases[canvasIndex];
+        if (canvas.images.length > 0) {
+            const serviceUrl = canvas.images[0].imageServiceUrl.replace(/\/$/, '');
+            img.src = `${serviceUrl}/full/!400,400/0/default.jpg`;
+            img.style.display = '';
+        } else {
+            img.style.display = 'none';
+        }
+    }
+
+    private setupMinimapDrag(container: HTMLDivElement): void {
+        const signal = this.abortController.signal;
+
+        const navigateFromEvent = (e: MouseEvent) => {
+            const mapRect = container.getBoundingClientRect();
+            const img = container.querySelector('img');
+            if (!img || img.style.display === 'none') return;
+
+            const world = this.cb.getWorldDimensions();
+            if (world.width === 0 || world.height === 0) return;
+
+            // Compute the rendered image area within the container (object-fit: contain)
+            const mapW = mapRect.width;
+            const mapH = mapRect.height;
+            const imgAspect = world.width / world.height;
+            const mapAspect = mapW / mapH;
+
+            let renderedW: number, renderedH: number, offsetX: number, offsetY: number;
+            if (imgAspect > mapAspect) {
+                renderedW = mapW;
+                renderedH = mapW / imgAspect;
+                offsetX = 0;
+                offsetY = (mapH - renderedH) / 2;
+            } else {
+                renderedH = mapH;
+                renderedW = mapH * imgAspect;
+                offsetX = (mapW - renderedW) / 2;
+                offsetY = 0;
+            }
+
+            const normX = Math.max(0, Math.min(1, (e.clientX - mapRect.left - offsetX) / renderedW));
+            const normY = Math.max(0, Math.min(1, (e.clientY - mapRect.top - offsetY) / renderedH));
+
+            this.cb.navigateTo(normX * world.width, normY * world.height);
+        };
+
+        container.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.minimapDragging = true;
+            navigateFromEvent(e);
+        }, { signal });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!this.minimapDragging) return;
+            e.preventDefault();
+            navigateFromEvent(e);
+        }, { signal });
+
+        document.addEventListener('mouseup', () => {
+            this.minimapDragging = false;
+        }, { signal });
     }
 
     private setupNavigationPanel(): void {
@@ -162,13 +451,13 @@ export class ViewerUI {
         zoomIn.className = 'iiif-nav-zoom-btn';
         zoomIn.title = 'Zoom In';
         zoomIn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 13 13"><rect width="13" height="2.5" rx="1" y="5.25" fill="currentColor"/><rect width="13" height="2.5" rx="1" transform="translate(7.75 0) rotate(90)" fill="currentColor"/></svg>`;
-        zoomIn.addEventListener('click', () => { this.cb.springZoomByFactor(1.5); this.cb.markDirty(); });
+        zoomIn.addEventListener('click', () => { this.cb.springZoomByFactor(this.cb.getWheelZoomFactor()); this.cb.markDirty(); });
 
         const zoomOut = document.createElement('button');
         zoomOut.className = 'iiif-nav-zoom-btn';
         zoomOut.title = 'Zoom Out';
         zoomOut.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="2" viewBox="0 0 13 3"><rect width="13" height="2.5" rx="1" fill="currentColor"/></svg>`;
-        zoomOut.addEventListener('click', () => { this.cb.springZoomByFactor(1 / 1.5); this.cb.markDirty(); });
+        zoomOut.addEventListener('click', () => { this.cb.springZoomByFactor(1 / this.cb.getWheelZoomFactor()); this.cb.markDirty(); });
 
         const resetBtn = document.createElement('button');
         resetBtn.className = 'iiif-nav-zoom-btn';
@@ -200,7 +489,7 @@ export class ViewerUI {
         const { panel, body } = this.panelManager.createPanel({
             className: 'iiif-toc',
             title: 'Contents',
-            initiallyCollapsed: this.panels.navigation === 'hide' || this.panels.navigation === 'show-closed',
+            initiallyCollapsed: this.getDesktopVisibility('navigation') === 'hide' || this.getDesktopVisibility('navigation') === 'show-closed',
             dock: 'top-right',
         });
         this.tocContainer = panel;
@@ -212,7 +501,7 @@ export class ViewerUI {
         const { body } = this.panelManager.createPanel({
             className: 'iiif-manifest-panel',
             title: 'Manifest',
-            initiallyCollapsed: this.panels.manifest === 'hide' || this.panels.manifest === 'show-closed',
+            initiallyCollapsed: this.getDesktopVisibility('manifest') === 'hide' || this.getDesktopVisibility('manifest') === 'show-closed',
             dock: 'top-right',
         });
         this.metadataPanelBody = body;
@@ -222,7 +511,7 @@ export class ViewerUI {
         const { panel, body } = this.panelManager.createPanel({
             className: 'iiif-annotation-panel',
             title: 'Annotations',
-            initiallyCollapsed: this.panels.annotations === 'hide' || this.panels.annotations === 'show-closed',
+            initiallyCollapsed: this.getDesktopVisibility('annotations') === 'hide' || this.getDesktopVisibility('annotations') === 'show-closed',
             dock: 'top-right',
         });
         this.annotationPanel = panel;
@@ -233,7 +522,7 @@ export class ViewerUI {
         const { panel, body } = this.panelManager.createPanel({
             className: 'iiif-cv-panel',
             title: 'Gesture',
-            initiallyCollapsed: this.panels.gesture === 'hide' || this.panels.gesture === 'show-closed',
+            initiallyCollapsed: this.getDesktopVisibility('gesture') === 'hide' || this.getDesktopVisibility('gesture') === 'show-closed',
             dock: 'top-left',
         });
         this.cvPanel = panel;
@@ -396,14 +685,17 @@ export class ViewerUI {
         this.settingsPanelBody = document.createElement('div');
         this.settingsPanelBody.className = 'iiif-panel-body iiif-settings-panel-body collapsed';
 
-        // Only show toggles for panels that are included
-        const panelConfigs: { label: string; defaultVisible: boolean; containerClass: string }[] = [];
-        if (this.panels.navigation !== undefined) panelConfigs.push({ label: 'Navigation', defaultVisible: this.panels.navigation !== 'hide', containerClass: 'hide-navigation' });
-        if (this.panels.pages !== undefined) panelConfigs.push({ label: 'Pages', defaultVisible: this.panels.pages !== 'hide', containerClass: 'hide-pages' });
-        if (this.panels.manifest !== undefined) panelConfigs.push({ label: 'Manifest', defaultVisible: this.panels.manifest !== 'hide', containerClass: 'hide-manifest' });
-        if (this.panels.annotations !== undefined) panelConfigs.push({ label: 'Annotations', defaultVisible: this.panels.annotations !== 'hide', containerClass: 'hide-annotations' });
-        if (this.panels.gesture !== undefined && !this.cb.isMobileOrTablet()) panelConfigs.push({ label: 'Gesture', defaultVisible: this.panels.gesture !== 'hide', containerClass: 'hide-vision' });
-        if (this.panels.compare !== undefined) panelConfigs.push({ label: 'Compare', defaultVisible: this.panels.compare !== 'hide', containerClass: 'hide-compare' });
+        // Only show toggles for panels that are included AND not hidden on desktop.
+        // Panels hidden via responsive breakpoints use CSS classes that the toggle can't remove,
+        // so we exclude them entirely to avoid conflicting hide mechanisms.
+        const panelConfigs: { label: string; containerClass: string }[] = [];
+        if (this.resolvedPanels.navigation && this.getDesktopVisibility('navigation') !== 'hide') panelConfigs.push({ label: 'Navigation', containerClass: 'hide-navigation' });
+        if (this.resolvedPanels.pages && this.getDesktopVisibility('pages') !== 'hide') panelConfigs.push({ label: 'Pages', containerClass: 'hide-pages' });
+        if (this.resolvedPanels.minimap && this.getDesktopVisibility('minimap') !== 'hide') panelConfigs.push({ label: 'Map', containerClass: 'hide-minimap' });
+        if (this.resolvedPanels.manifest && this.getDesktopVisibility('manifest') !== 'hide') panelConfigs.push({ label: 'Manifest', containerClass: 'hide-manifest' });
+        if (this.resolvedPanels.annotations && this.getDesktopVisibility('annotations') !== 'hide') panelConfigs.push({ label: 'Annotations', containerClass: 'hide-annotations' });
+        if (this.resolvedPanels.gesture && !this.cb.isMobileOrTablet() && this.getDesktopVisibility('gesture') !== 'hide') panelConfigs.push({ label: 'Gesture', containerClass: 'hide-vision' });
+        if (this.resolvedPanels.compare && this.getDesktopVisibility('compare') !== 'hide') panelConfigs.push({ label: 'Compare', containerClass: 'hide-compare' });
 
         for (const config of panelConfigs) {
             const item = document.createElement('label');
@@ -412,7 +704,7 @@ export class ViewerUI {
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = 'iiif-settings-panel-checkbox';
-            checkbox.checked = config.defaultVisible;
+            checkbox.checked = true;
 
             const labelText = document.createElement('span');
             labelText.textContent = config.label;
@@ -420,11 +712,6 @@ export class ViewerUI {
             item.appendChild(checkbox);
             item.appendChild(labelText);
             this.settingsCheckboxes.set(config.containerClass, checkbox);
-
-            // Apply initial state using container class
-            if (!config.defaultVisible) {
-                this.container.classList.add(config.containerClass);
-            }
 
             this.addEvent(checkbox, 'change', () => {
                 // Toggle container class for global effect
@@ -596,7 +883,7 @@ export class ViewerUI {
         this.comparePanel.style.display = 'flex';
 
         // Auto-enter compare mode for 'show' option
-        if (this.panels.compare === 'show' && !this.cb.getComparisonController() && this.cb.getCurrentLoadedUrl()) {
+        if (this.getDesktopVisibility('compare') === 'show' && !this.cb.getComparisonController() && this.cb.getCurrentLoadedUrl()) {
             this.cb.enterCompareMode();
             const body = this.comparePanel.querySelector('.iiif-panel-body');
             body?.classList.remove('collapsed');
@@ -798,6 +1085,63 @@ export class ViewerUI {
         items.forEach((item, i) => {
             item.classList.toggle('active', i === currentCanvasIndex);
         });
+    }
+
+    /** Update the minimap viewport rectangle position and size */
+    updateMinimap(): void {
+        if (!this.minimapRect || !this.minimapImgContainer) return;
+
+        const world = this.cb.getWorldDimensions();
+        if (world.width === 0 || world.height === 0) return;
+
+        const vpBounds = this.cb.getViewportBounds();
+
+        const mapW = this.minimapImgContainer.clientWidth;
+        const mapH = this.minimapImgContainer.clientHeight;
+        if (mapW === 0 || mapH === 0) return;
+
+        // Compute rendered image area (object-fit: contain)
+        const imgAspect = world.width / world.height;
+        const mapAspect = mapW / mapH;
+
+        let renderedW: number, renderedH: number, offsetX: number, offsetY: number;
+        if (imgAspect > mapAspect) {
+            renderedW = mapW;
+            renderedH = mapW / imgAspect;
+            offsetX = 0;
+            offsetY = (mapH - renderedH) / 2;
+        } else {
+            renderedH = mapH;
+            renderedW = mapH * imgAspect;
+            offsetX = (mapW - renderedW) / 2;
+            offsetY = 0;
+        }
+
+        // Map world viewport bounds to minimap pixel positions
+        const left = offsetX + (vpBounds.left / world.width) * renderedW;
+        const top = offsetY + (vpBounds.top / world.height) * renderedH;
+        const right = offsetX + (vpBounds.right / world.width) * renderedW;
+        const bottom = offsetY + (vpBounds.bottom / world.height) * renderedH;
+
+        // Clamp to panel container bounds (allow rect to extend beyond image)
+        const clampedLeft = Math.max(0, Math.min(left, mapW));
+        const clampedTop = Math.max(0, Math.min(top, mapH));
+        const clampedRight = Math.max(0, Math.min(right, mapW));
+        const clampedBottom = Math.max(0, Math.min(bottom, mapH));
+
+        const rectW = clampedRight - clampedLeft;
+        const rectH = clampedBottom - clampedTop;
+
+        // Hide rect if viewport covers entire world
+        if (rectW >= renderedW - 1 && rectH >= renderedH - 1) {
+            this.minimapRect.style.display = 'none';
+        } else {
+            this.minimapRect.style.display = 'block';
+            this.minimapRect.style.left = `${clampedLeft}px`;
+            this.minimapRect.style.top = `${clampedTop}px`;
+            this.minimapRect.style.width = `${Math.max(4, rectW)}px`;
+            this.minimapRect.style.height = `${Math.max(4, rectH)}px`;
+        }
     }
 
     updateTOC(): void {

@@ -4,7 +4,7 @@
  * Extracted from IIIFViewer to reduce file size and improve maintainability.
  */
 
-import { CAMERA_CONFIG, TOUCH_CONFIG, NON_PAN_SELECTORS } from '../config';
+import { TOUCH_CONFIG, NON_PAN_SELECTORS } from '../config';
 import type { TouchState, CameraInterface, ViewportInterface } from '../types';
 
 export interface InputHandlerCallbacks {
@@ -19,6 +19,8 @@ export interface InputHandlerCallbacks {
     exitFullscreen: () => void;
     isFullscreen: () => boolean;
     updateFullscreenButton: (active: boolean) => void;
+    /** Transform screen-space input coordinates to compensate for CSS rotation/mirror on the canvas */
+    transformInput: (x: number, y: number) => { x: number; y: number };
 }
 
 /**
@@ -29,7 +31,6 @@ export function setupInputHandlers(
     container: HTMLElement,
     camera: CameraInterface,
     viewport: ViewportInterface,
-    cachedContainerRect: DOMRect,
     abortController: AbortController,
     callbacks: InputHandlerCallbacks
 ): TouchState {
@@ -52,6 +53,16 @@ export function setupInputHandlers(
         element.addEventListener(type, listener, { signal: abortController.signal, ...options });
     };
 
+    /** Convert client coords to canvas coords, compensating for CSS rotation/mirror */
+    const toCanvas = (clientX: number, clientY: number) => {
+        // Read live rect each time — the cached rect goes stale when the page is scrolled
+        const rect = container.getBoundingClientRect();
+        return callbacks.transformInput(
+            clientX - rect.left,
+            clientY - rect.top
+        );
+    };
+
     // Mouse events
     addEventListener(container, 'mousedown', (event: MouseEvent) => {
         if ((event.target as HTMLElement).closest(NON_PAN_SELECTORS)) return;
@@ -59,14 +70,12 @@ export function setupInputHandlers(
         event.preventDefault();
         event.stopPropagation();
 
-        const canvasX = event.clientX - cachedContainerRect.left;
-        const canvasY = event.clientY - cachedContainerRect.top;
+        const { x: canvasX, y: canvasY } = toCanvas(event.clientX, event.clientY);
 
         camera.startInteractivePan(canvasX, canvasY);
 
         const onMouseMove = (moveEvent: MouseEvent) => {
-            const newCanvasX = moveEvent.clientX - cachedContainerRect.left;
-            const newCanvasY = moveEvent.clientY - cachedContainerRect.top;
+            const { x: newCanvasX, y: newCanvasY } = toCanvas(moveEvent.clientX, moveEvent.clientY);
             camera.updateInteractivePan(newCanvasX, newCanvasY);
         };
 
@@ -83,8 +92,7 @@ export function setupInputHandlers(
     });
 
     addEventListener(container, 'wheel', (event: WheelEvent) => {
-        const canvasX = event.clientX - cachedContainerRect.left;
-        const canvasY = event.clientY - cachedContainerRect.top;
+        const { x: canvasX, y: canvasY } = toCanvas(event.clientX, event.clientY);
         camera.handleWheel(event, canvasX, canvasY);
     }, { passive: false });
 
@@ -95,21 +103,17 @@ export function setupInputHandlers(
         event.preventDefault();
         event.stopPropagation();
 
-        const rect = cachedContainerRect;
         for (let i = 0; i < event.changedTouches.length; i++) {
             const t = event.changedTouches[i];
-            touchState.activeTouches.set(t.identifier, {
-                x: t.clientX - rect.left,
-                y: t.clientY - rect.top
-            });
+            const p = toCanvas(t.clientX, t.clientY);
+            touchState.activeTouches.set(t.identifier, { x: p.x, y: p.y });
         }
 
         const touchCount = touchState.activeTouches.size;
 
         if (touchCount === 1) {
             const touch = event.changedTouches[0];
-            const canvasX = touch.clientX - rect.left;
-            const canvasY = touch.clientY - rect.top;
+            const { x: canvasX, y: canvasY } = toCanvas(touch.clientX, touch.clientY);
 
             // Double-tap detection
             const now = performance.now();
@@ -145,21 +149,17 @@ export function setupInputHandlers(
         if ((event.target as HTMLElement).closest(NON_PAN_SELECTORS)) return;
         event.preventDefault();
 
-        const rect = cachedContainerRect;
         for (let i = 0; i < event.changedTouches.length; i++) {
             const t = event.changedTouches[i];
-            touchState.activeTouches.set(t.identifier, {
-                x: t.clientX - rect.left,
-                y: t.clientY - rect.top
-            });
+            const p = toCanvas(t.clientX, t.clientY);
+            touchState.activeTouches.set(t.identifier, { x: p.x, y: p.y });
         }
 
         const touchCount = touchState.activeTouches.size;
 
         if (touchCount === 1 && !touchState.isPinching) {
             const touch = event.changedTouches[0];
-            const canvasX = touch.clientX - rect.left;
-            const canvasY = touch.clientY - rect.top;
+            const { x: canvasX, y: canvasY } = toCanvas(touch.clientX, touch.clientY);
             camera.updateInteractivePan(canvasX, canvasY);
         }
 
@@ -218,7 +218,7 @@ export function setupInputHandlers(
     addEventListener(container, 'click', (event: MouseEvent) => {
         const tag = (event.target as HTMLElement).tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-        container.focus();
+        container.focus({ preventScroll: true });
     });
 
     const heldArrows = new Set<string>();
@@ -260,12 +260,12 @@ export function setupInputHandlers(
             case '+':
             case '=':
                 event.preventDefault();
-                camera.springZoomByFactor(CAMERA_CONFIG.ZOOM_FACTOR);
+                camera.springZoomByFactor(camera.wheelZoomFactor);
                 callbacks.markDirty();
                 break;
             case '-':
                 event.preventDefault();
-                camera.springZoomByFactor(1 / CAMERA_CONFIG.ZOOM_FACTOR);
+                camera.springZoomByFactor(1 / camera.wheelZoomFactor);
                 callbacks.markDirty();
                 break;
 

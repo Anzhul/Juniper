@@ -127,3 +127,50 @@ export const PER_INSTANCE_PANELS: ReadonlySet<string> = new Set([
 
 /** Selector for elements that should not trigger canvas pan */
 export const NON_PAN_SELECTORS = '.iiif-toolbar, .iiif-canvas-nav, .iiif-navigation-wrapper, .iiif-toc, .iiif-metadata-panel, .iiif-canvas-list, .iiif-compare-control-bar, .iiif-panel';
+
+// ============================================================
+// VIEWER PRESETS
+// ============================================================
+
+import type { IIIFViewerPanels } from './types';
+
+/** Preset configurations for common use cases */
+export const VIEWER_PRESETS: Record<string, { panels: IIIFViewerPanels; enableToolbar: boolean; enableCompare: boolean; enablePanels: boolean; enableOverlays: boolean }> = {
+    /** Bare canvas — no UI chrome at all */
+    minimal: {
+        panels: {},
+        enableToolbar: false,
+        enableCompare: false,
+        enablePanels: false,
+        enableOverlays: false,
+    },
+    /** Toolbar + navigation only — clean viewing experience */
+    viewer: {
+        panels: {
+            navigation: 'show',
+            pages: 'show',
+            minimap: 'show',
+        },
+        enableToolbar: true,
+        enableCompare: false,
+        enablePanels: true,
+        enableOverlays: true,
+    },
+    /** All features enabled and panels visible */
+    full: {
+        panels: {
+            settings: 'show-closed',
+            navigation: 'show',
+            pages: 'show',
+            minimap: 'show',
+            manifest: 'show-closed',
+            annotations: 'show',
+            compare: 'show',
+            gesture: 'show-closed',
+        },
+        enableToolbar: true,
+        enableCompare: true,
+        enablePanels: true,
+        enableOverlays: true,
+    },
+};

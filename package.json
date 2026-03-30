@@ -1,10 +1,17 @@
 {
   "name": "juniper-iiif",
-  "version": "1.0.0",
+  "version": "1.1.4",
   "description": "High-performance IIIF viewer with WebGPU/WebGL rendering, annotations, and comparison mode",
   "author": "Anzhu <anzhul@umich.edu>",
   "license": "MIT",
-  "keywords": ["iiif", "webgpu", "webgl", "image-viewer", "annotations", "digital-humanities"],
+  "keywords": [
+    "iiif",
+    "webgpu",
+    "webgl",
+    "image-viewer",
+    "annotations",
+    "digital-humanities"
+  ],
   "type": "module",
   "main": "./dist/iiif-viewer.umd.cjs",
   "module": "./dist/iiif-viewer.js",
@@ -15,7 +22,8 @@
       "import": "./dist/iiif-viewer.js",
       "require": "./dist/iiif-viewer.umd.cjs"
     },
-    "./style.css": "./dist/iiif-viewer.css"
+    "./style.css": "./dist/iiif-viewer.css",
+    "./theme.css": "./dist/iiif-theme.css"
   },
   "sideEffects": [
     "*.css"
@@ -26,7 +34,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:lib": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build:lib": "vite build && tsc -p tsconfig.build.json",
     "preview": "vite preview",
     "prepublishOnly": "npm run build:lib"
   },

@@ -242,6 +242,11 @@ export class TileManager {
         return Array.from(this.tileCache.keys());
     }
 
+    /** Whether any tiles are currently being fetched or awaiting GPU upload */
+    hasPendingLoads(): boolean {
+        return this.loadingTiles.size > 0 || this.pendingGPUUploads.length > 0;
+    }
+
     // ============================================================================
     // PRIVATE - Viewport Change Detection
     // ============================================================================

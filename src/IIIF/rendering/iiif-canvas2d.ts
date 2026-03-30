@@ -16,7 +16,6 @@ export class Canvas2DRenderer extends RendererBase {
             throw new Error('Canvas 2D context not available');
         }
         this.ctx = ctx;
-        console.log('Canvas 2D renderer initialized successfully');
     }
 
     render(viewport: Viewport, tiles: TileRenderData[]) {

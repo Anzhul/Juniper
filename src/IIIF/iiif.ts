@@ -12,8 +12,10 @@ import { World, WorldImage } from './core/iiif-world';
 import type { WorldPlacement } from './core/iiif-world';
 import { parseIIIFUrl, fetchAnnotationList } from './iiif-parser';
 import type { ParsedManifest, ParsedImageService } from './iiif-parser';
-import { PANEL_CLASS_MAP, PANEL_HIDE_CLASS, PER_INSTANCE_PANELS } from './config';
-import type { IIIFViewerOptions, IIIFViewerPanels, LayoutState, CanvasInfo, LookAtOptions } from './types';
+import { PANEL_CLASS_MAP, PANEL_HIDE_CLASS, PER_INSTANCE_PANELS, VIEWER_PRESETS, TILE_CONFIG } from './config';
+import type { IIIFViewerOptions, IIIFViewerPanels, LayoutState, CanvasInfo, LookAtOptions, FitBoundsOptions } from './types';
+import { ViewerEventEmitter } from './core/iiif-events';
+import type { ViewerEventMap } from './core/iiif-events';
 import { ViewerUI } from './ui/iiif-viewer-ui';
 import type { ViewerUICallbacks } from './ui/iiif-viewer-ui';
 
@@ -58,6 +60,9 @@ export class IIIFViewer {
     annotationManager?: AnnotationManager;
     overlayManager?: IIIFOverlayManager;
 
+    // Event emitter — public API for subscribing to viewer events
+    readonly events = new ViewerEventEmitter();
+
     // Viewport change callback (used by ComparisonController for camera sync)
     onViewportChange?: (centerX: number, centerY: number, cameraZ: number) => void;
 
@@ -94,7 +99,6 @@ export class IIIFViewer {
     private hiddenAnnotationTypes: Set<string> = new Set();
 
     // Cached values for performance
-    private cachedContainerRect: DOMRect;
     private lastViewportState = {
         centerX: NaN,
         centerY: NaN,
@@ -117,32 +121,63 @@ export class IIIFViewer {
     // Configuration
     private readonly CONFIG: IIIFViewerOptions;
     private readonly panels: IIIFViewerPanels;
+    private readonly minZoom: number;
+    private readonly maxZoom: number;
+
+    /**
+     * Create a viewer, load a URL, and start rendering — all in one call.
+     *
+     * @example
+     * const viewer = await IIIFViewer.create(container, 'https://example.org/manifest.json');
+     * // Viewer is fully initialized, listening for input, and rendering.
+     *
+     * @example
+     * const viewer = await IIIFViewer.create(container, 'https://example.org/manifest.json', {
+     *     preset: 'minimal',
+     *     renderer: 'webgl',
+     * });
+     */
+    static async create(
+        container: HTMLElement,
+        url: string,
+        options: IIIFViewerOptions = {}
+    ): Promise<IIIFViewer> {
+        const viewer = new IIIFViewer(container, { ...options, autoStart: true });
+        await viewer.loadUrl(url);
+        return viewer;
+    }
 
     constructor(container: HTMLElement, options: IIIFViewerOptions = {}) {
         this.container = container;
+
+        // Apply preset defaults, then let explicit options override
+        const preset = options.preset ? VIEWER_PRESETS[options.preset] : undefined;
+
         this.CONFIG = {
             renderer: options.renderer ?? 'auto',
-            enableOverlays: options.enableOverlays ?? true,
-            enableToolbar: options.enableToolbar ?? true,
-            enableCompare: options.enableCompare ?? true,
-            enablePanels: options.enablePanels ?? true,
+            enableOverlays: options.enableOverlays ?? preset?.enableOverlays ?? true,
+            enableToolbar: options.enableToolbar ?? preset?.enableToolbar ?? true,
+            enableCompare: options.enableCompare ?? preset?.enableCompare ?? true,
+            enablePanels: options.enablePanels ?? preset?.enablePanels ?? true,
             maxCacheSize: options.maxCacheSize ?? 500,
             toolbar: options.toolbar,
-            panels: options.panels,
+            panels: options.panels ?? preset?.panels,
             suppressNavigation: options.suppressNavigation ?? false,
             suppressSettings: options.suppressSettings ?? false,
+            distanceDetail: options.distanceDetail ?? TILE_CONFIG.DISTANCE_DETAIL,
         };
 
         // Panels: mentioned = available, omitted = not created
-        this.panels = options.panels ?? {};
+        this.panels = options.panels ?? preset?.panels ?? {};
+
+        // Zoom limits (scale multipliers relative to fit-to-view)
+        this.minZoom = options.camera?.minZoom ?? 0.2;
+        this.maxZoom = options.camera?.maxZoom ?? 10;
 
         // Initialize core components
         this.world = new World();
         this.viewport = new Viewport(container.clientWidth, container.clientHeight);
-        this.camera = new Camera(this.viewport, this.world);
-
-        // Cache container rect
-        this.cachedContainerRect = container.getBoundingClientRect();
+        this.camera = new Camera(this.viewport, this.world, options.camera);
 
         // Set up UI components
         if (this.CONFIG.enableOverlays) {
@@ -163,6 +198,7 @@ export class IIIFViewer {
             exitCompareMode: () => this.exitCompareMode(),
             saveLayout: () => this.saveLayout(),
             loadLayout: (state) => this.loadLayout(state),
+            getWheelZoomFactor: () => this.camera.wheelZoomFactor,
             getViewportScale: () => this.viewport.scale,
             getRenderer: () => this.renderer as any,
             getAnnotationManager: () => this.annotationManager,
@@ -179,6 +215,12 @@ export class IIIFViewer {
             getComparisonController: () => this.comparisonController as any,
             isMobileOrTablet: () => this.isMobileOrTablet(),
             getCanvasIdToIndex: () => this.canvasIdToIndex,
+            getWorldDimensions: () => ({ width: this.world.worldWidth, height: this.world.worldHeight }),
+            getViewportBounds: () => this.viewport.getWorldBounds(),
+            navigateTo: (centerX: number, centerY: number) => {
+                this.camera.to(centerX, centerY, this.viewport.cameraZ, 200);
+                this.markDirty();
+            },
         };
 
         this.ui = new ViewerUI(container, this.panels, this.CONFIG, this.abortController, uiCallbacks);
@@ -187,6 +229,12 @@ export class IIIFViewer {
         // Set up handlers
         this.setupResizeHandler();
         this.initializeRenderer();
+
+        // Auto-start if requested (used by static create())
+        if (options.autoStart) {
+            this.listen();
+            this.startRenderLoop();
+        }
     }
 
     private isMobileOrTablet(): boolean {
@@ -244,7 +292,6 @@ export class IIIFViewer {
                 }
             }
         } else {
-            console.log('WebGPU not available, trying WebGL');
             const webglSuccess = await this.initializeWebGL();
             if (!webglSuccess) {
                 console.warn('WebGL initialization failed, falling back to Canvas 2D');
@@ -261,13 +308,14 @@ export class IIIFViewer {
 
     private async initializeWebGPU(): Promise<boolean> {
         try {
-            console.log('Initializing WebGPU renderer');
             this.renderer = new WebGPURenderer(this.container);
             await this.renderer.initialize();
             this.updateRendererForAllTileManagers();
+            this.events.emit('rendererReady', { type: 'webgpu' });
             return true;
         } catch (error) {
             console.error('Failed to initialize WebGPU renderer:', error);
+            this.events.emit('error', { message: 'WebGPU initialization failed', source: 'renderer', originalError: error });
             this.renderer = undefined;
             return false;
         }
@@ -275,13 +323,14 @@ export class IIIFViewer {
 
     private async initializeWebGL(): Promise<boolean> {
         try {
-            console.log('Initializing WebGL renderer');
             this.renderer = new WebGLRenderer(this.container);
             await this.renderer.initialize();
             this.updateRendererForAllTileManagers();
+            this.events.emit('rendererReady', { type: 'webgl' });
             return true;
         } catch (error) {
             console.error('Failed to initialize WebGL renderer:', error);
+            this.events.emit('error', { message: 'WebGL initialization failed', source: 'renderer', originalError: error });
             this.renderer = undefined;
             return false;
         }
@@ -289,13 +338,14 @@ export class IIIFViewer {
 
     private async initializeCanvas2D(): Promise<boolean> {
         try {
-            console.log('Initializing Canvas 2D renderer');
             this.renderer = new Canvas2DRenderer(this.container);
             await this.renderer.initialize();
             this.updateRendererForAllTileManagers();
+            this.events.emit('rendererReady', { type: 'canvas2d' });
             return true;
         } catch (error) {
             console.error('Failed to initialize Canvas 2D renderer:', error);
+            this.events.emit('error', { message: 'Canvas2D initialization failed', source: 'renderer', originalError: error });
             this.renderer = undefined;
             return false;
         }
@@ -326,7 +376,6 @@ export class IIIFViewer {
     }
 
     private handleResize() {
-        this.cachedContainerRect = this.container.getBoundingClientRect();
         this.viewport.containerWidth = this.container.clientWidth;
         this.viewport.containerHeight = this.container.clientHeight;
         this.viewport.updateScale(); // Recalculate scale for new container dimensions
@@ -355,6 +404,17 @@ export class IIIFViewer {
      * Set up mouse/wheel event listeners for interactive navigation
      */
     listen() {
+        /** Convert client coords to canvas coords, compensating for CSS rotation/mirror */
+        const toCanvas = (clientX: number, clientY: number) => {
+            // Read live rect each time — the cached rect goes stale when the page is scrolled
+            const rect = this.container.getBoundingClientRect();
+            const raw = {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+            return this.ui.transformInput(raw.x, raw.y, rect.width, rect.height);
+        };
+
         this.addEventListener(this.container, 'mousedown', (event: MouseEvent) => {
             // Don't start pan when clicking toolbar/UI elements
             if ((event.target as HTMLElement).closest('.iiif-toolbar, .iiif-canvas-nav, .iiif-navigation-wrapper, .iiif-toc, .iiif-metadata-panel, .iiif-canvas-list, .iiif-compare-control-bar, .iiif-panel')) return;
@@ -362,14 +422,12 @@ export class IIIFViewer {
             event.preventDefault();
             event.stopPropagation();
 
-            const canvasX = event.clientX - this.cachedContainerRect.left;
-            const canvasY = event.clientY - this.cachedContainerRect.top;
+            const { x: canvasX, y: canvasY } = toCanvas(event.clientX, event.clientY);
 
             this.camera.startInteractivePan(canvasX, canvasY);
 
             const onMouseMove = (moveEvent: MouseEvent) => {
-                const newCanvasX = moveEvent.clientX - this.cachedContainerRect.left;
-                const newCanvasY = moveEvent.clientY - this.cachedContainerRect.top;
+                const { x: newCanvasX, y: newCanvasY } = toCanvas(moveEvent.clientX, moveEvent.clientY);
                 this.camera.updateInteractivePan(newCanvasX, newCanvasY);
             };
 
@@ -386,8 +444,7 @@ export class IIIFViewer {
         });
 
         this.addEventListener(this.container, 'wheel', (event: WheelEvent) => {
-            const canvasX = event.clientX - this.cachedContainerRect.left;
-            const canvasY = event.clientY - this.cachedContainerRect.top;
+            const { x: canvasX, y: canvasY } = toCanvas(event.clientX, event.clientY);
             this.camera.handleWheel(event, canvasX, canvasY);
         }, { passive: false });
 
@@ -398,21 +455,17 @@ export class IIIFViewer {
             event.preventDefault();
             event.stopPropagation();
 
-            const rect = this.cachedContainerRect;
             for (let i = 0; i < event.changedTouches.length; i++) {
                 const t = event.changedTouches[i];
-                this.touchState.activeTouches.set(t.identifier, {
-                    x: t.clientX - rect.left,
-                    y: t.clientY - rect.top
-                });
+                const p = toCanvas(t.clientX, t.clientY);
+                this.touchState.activeTouches.set(t.identifier, { x: p.x, y: p.y });
             }
 
             const touchCount = this.touchState.activeTouches.size;
 
             if (touchCount === 1) {
                 const touch = event.changedTouches[0];
-                const canvasX = touch.clientX - rect.left;
-                const canvasY = touch.clientY - rect.top;
+                const { x: canvasX, y: canvasY } = toCanvas(touch.clientX, touch.clientY);
 
                 // Double-tap detection
                 const now = performance.now();
@@ -449,21 +502,17 @@ export class IIIFViewer {
             if ((event.target as HTMLElement).closest('.iiif-toolbar, .iiif-canvas-nav, .iiif-navigation-wrapper, .iiif-toc, .iiif-metadata-panel, .iiif-canvas-list, .iiif-compare-control-bar, .iiif-panel')) return;
             event.preventDefault();
 
-            const rect = this.cachedContainerRect;
             for (let i = 0; i < event.changedTouches.length; i++) {
                 const t = event.changedTouches[i];
-                this.touchState.activeTouches.set(t.identifier, {
-                    x: t.clientX - rect.left,
-                    y: t.clientY - rect.top
-                });
+                const p = toCanvas(t.clientX, t.clientY);
+                this.touchState.activeTouches.set(t.identifier, { x: p.x, y: p.y });
             }
 
             const touchCount = this.touchState.activeTouches.size;
 
             if (touchCount === 1 && !this.touchState.isPinching) {
                 const touch = event.changedTouches[0];
-                const canvasX = touch.clientX - rect.left;
-                const canvasY = touch.clientY - rect.top;
+                const { x: canvasX, y: canvasY } = toCanvas(touch.clientX, touch.clientY);
                 this.camera.updateInteractivePan(canvasX, canvasY);
             }
 
@@ -524,7 +573,7 @@ export class IIIFViewer {
         this.addEventListener(this.container, 'click', (event: MouseEvent) => {
             const tag = (event.target as HTMLElement).tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-            this.container.focus();
+            this.container.focus({ preventScroll: true });
         });
 
         // Track held arrow keys for diagonal movement
@@ -657,7 +706,7 @@ export class IIIFViewer {
             iiifImage,
             this.CONFIG.maxCacheSize,
             this.renderer,
-            0.65,  // distanceDetail
+            this.CONFIG.distanceDetail ?? TILE_CONFIG.DISTANCE_DETAIL,
             () => this.markDirty()  // onTileLoaded callback
         );
 
@@ -666,7 +715,7 @@ export class IIIFViewer {
         this.world.addImage(id, worldImage);
 
         if (focus) {
-            this.viewport.fitToWorld(this.world.worldWidth, this.world.worldHeight);
+            this.viewport.fitToWorld(this.world.worldWidth, this.world.worldHeight, this.minZoom, this.maxZoom);
         }
 
         tileManager.requestTilesForViewport(this.viewport);
@@ -718,6 +767,7 @@ export class IIIFViewer {
             this.ui.updateManifestPanel();
             this.ui.updateComparePanel();
             this.ui.updateAnnotationPanel();
+            this.events.emit('load', { url, type: 'image-service' });
         } else {
             this.clearWorld();
             this.manifest = result as ParsedManifest;
@@ -733,6 +783,7 @@ export class IIIFViewer {
             this.ui.updateManifestPanel();
             this.ui.updateComparePanel();
             await this.loadCanvas(0, focus);
+            this.events.emit('load', { url, type: 'manifest' });
         }
     }
 
@@ -864,6 +915,7 @@ export class IIIFViewer {
         this.clearWorld();
         this.currentCanvasIndex = index;
         this.ui.updateCanvasNavActiveState();
+        this.ui.updateMinimapThumbnail();
 
         const canvas = this.manifest.canvases[index];
         let loadedCount = 0;
@@ -891,11 +943,13 @@ export class IIIFViewer {
         }
 
         if (focus && loadedCount > 0 && this.world.worldImages.size > 0) {
-            this.viewport.fitToWorld(this.world.worldWidth, this.world.worldHeight);
+            this.viewport.fitToWorld(this.world.worldWidth, this.world.worldHeight, this.minZoom, this.maxZoom);
         }
 
         await this.loadIIIFAnnotationsForCanvas(canvas);
         this.ui.updateCustomAnnotationVisibility();
+
+        this.events.emit('canvasChange', { index, label: canvas.label });
     }
 
     private async loadIIIFAnnotationsForCanvas(canvas: CanvasInfo): Promise<void> {
@@ -954,6 +1008,56 @@ export class IIIFViewer {
     }
 
     // ============================================================
+    // STATE ACCESSORS
+    // ============================================================
+
+    /**
+     * Subscribe to viewer events. Shorthand for `viewer.events.on(...)`.
+     * Returns an unsubscribe function.
+     *
+     * @example
+     * const off = viewer.on('zoom', ({ zoom }) => updateUI(zoom));
+     */
+    on<K extends keyof ViewerEventMap>(
+        event: K,
+        listener: ViewerEventMap[K] extends void ? () => void : (payload: ViewerEventMap[K]) => void
+    ): () => void {
+        return this.events.on(event, listener);
+    }
+
+    /** Current zoom level (scale where 1 = 1:1 image pixels to screen pixels) */
+    getZoom(): number {
+        return this.viewport.scale;
+    }
+
+    /** Current center position in world coordinates */
+    getCenter(): { x: number; y: number } {
+        return { x: this.viewport.centerX, y: this.viewport.centerY };
+    }
+
+    /** Current visible bounds in world coordinates */
+    getBounds(): { left: number; top: number; right: number; bottom: number } {
+        return this.viewport.getWorldBounds();
+    }
+
+    /** Which renderer backend is active, or undefined if not yet initialized */
+    getRendererType(): 'webgpu' | 'webgl' | 'canvas2d' | undefined {
+        if (!this.renderer) return undefined;
+        if (this.renderer instanceof WebGPURenderer) return 'webgpu';
+        if (this.renderer instanceof WebGLRenderer) return 'webgl';
+        if (this.renderer instanceof Canvas2DRenderer) return 'canvas2d';
+        return undefined;
+    }
+
+    /** Whether any tiles are currently being fetched */
+    isLoading(): boolean {
+        for (const wi of this.world.worldImages.values()) {
+            if (wi.tileManager.hasPendingLoads()) return true;
+        }
+        return false;
+    }
+
+    // ============================================================
     // NAVIGATION API
     // ============================================================
 
@@ -1000,6 +1104,10 @@ export class IIIFViewer {
             this.viewport.containerHeight / wh,
         );
         const targetZ = this.viewport.containerHeight / (2 * targetScale * this.viewport.getTanHalfFov());
+        // Update zoom limits relative to fit-to-view
+        this.viewport.maxZ = targetZ / this.minZoom;
+        this.viewport.minZ = targetZ / this.maxZoom;
+        this.viewport.updateScale();
         this.camera.to(ww / 2, wh / 2, targetZ);
         this.markDirty();
     }
@@ -1046,6 +1154,51 @@ export class IIIFViewer {
         }
 
         this.camera.to(x, y, targetZ, duration);
+        this.markDirty();
+    }
+
+    /**
+     * Smoothly pan and zoom to fit a rectangular region in image coordinates.
+     *
+     * @param x - Left edge in image pixels
+     * @param y - Top edge in image pixels
+     * @param width - Width in image pixels
+     * @param height - Height in image pixels
+     * @param options - Optional configuration
+     *
+     * @example
+     * // Zoom to a 400x300 region starting at (100, 200)
+     * viewer.fitBounds(100, 200, 400, 300);
+     *
+     * // With padding and custom duration
+     * viewer.fitBounds(100, 200, 400, 300, { padding: 80, duration: 800 });
+     *
+     * // Zoom to an annotation's bounding box
+     * viewer.fitBounds(ann.x, ann.y, ann.width, ann.height, { padding: 100 });
+     */
+    fitBounds(x: number, y: number, width: number, height: number, options?: FitBoundsOptions) {
+        const duration = options?.duration ?? 500;
+        const padding = options?.padding ?? 50;
+
+        // Center of the target rectangle in world coordinates
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+
+        // Available container space after padding
+        const availableWidth = Math.max(1, this.viewport.containerWidth - padding * 2);
+        const availableHeight = Math.max(1, this.viewport.containerHeight - padding * 2);
+
+        // Scale needed to fit the region into the available space
+        const targetScale = Math.min(
+            availableWidth / width,
+            availableHeight / height,
+        );
+
+        // Convert scale to cameraZ
+        let targetZ = this.viewport.containerHeight / (2 * targetScale * this.viewport.getTanHalfFov());
+        targetZ = Math.max(this.viewport.minZ, Math.min(this.viewport.maxZ, targetZ));
+
+        this.camera.to(centerX, centerY, targetZ, duration);
         this.markDirty();
     }
 
@@ -1510,12 +1663,25 @@ export class IIIFViewer {
         // Render (tiles are pre-sorted, no thumbnail param needed)
         this.renderer.render(this.viewport, allTiles);
 
-        // Update overlays only if viewport changed
+        // Update overlays and emit events only if viewport changed
         if (viewportChanged) {
+            const prevScale = this.lastViewportState.scale;
             this.overlayManager?.updateAllOverlays();
+            this.ui.updateMinimap();
             this.updateViewportState();
             if (this.onViewportChange) {
                 this.onViewportChange(this.viewport.centerX, this.viewport.centerY, this.viewport.cameraZ);
+            }
+
+            this.events.emit('viewportChange', {
+                centerX: this.viewport.centerX,
+                centerY: this.viewport.centerY,
+                zoom: this.viewport.scale,
+                scale: this.viewport.scale,
+            });
+
+            if (this.viewport.scale !== prevScale && !isNaN(prevScale)) {
+                this.events.emit('zoom', { zoom: this.viewport.scale, scale: this.viewport.scale });
             }
         }
 
@@ -1531,7 +1697,6 @@ export class IIIFViewer {
         }
 
         this.renderLoopActive = true;
-        console.log('Starting render loop');
 
         const loop = () => {
             if (!this.renderLoopActive) {
@@ -1734,6 +1899,7 @@ export class IIIFViewer {
      * Destroy the viewer and free all resources
      */
     destroy() {
+        this.events.emit('destroy');
         this.stopRenderLoop();
         this.abortController.abort();
         this.clearWorld();
@@ -1741,5 +1907,12 @@ export class IIIFViewer {
         this.ui.cvController?.destroy();
         this.overlayManager = undefined;
         this.annotationManager = undefined;
+        this.events.off();
+
+        // Remove all DOM elements the viewer injected into the container
+        // (docks, panels, toolbar, overlay container, renderer canvas, etc.)
+        while (this.container.firstChild) {
+            this.container.removeChild(this.container.firstChild);
+        }
     }
 }

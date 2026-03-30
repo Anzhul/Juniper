@@ -162,12 +162,6 @@ export class CVController {
         });
         await this.video.play();
 
-        const track = this.stream.getVideoTracks()[0];
-        if (track) {
-            const settings = track.getSettings();
-            console.log(`Webcam: ${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
-        }
-
         // Size display canvas to match video
         if (this.displayCanvas && this.displayCtx) {
             this.displayCanvas.width = this.video.videoWidth || 320;
@@ -267,10 +261,8 @@ export class CVController {
 
         // Try MediaStreamTrackProcessor (Insertable Streams API)
         if (track && typeof (globalThis as any).MediaStreamTrackProcessor !== 'undefined') {
-            console.log('[CV] Using MediaStreamTrackProcessor for frame delivery');
             this.startTrackProcessorLoop(track);
         } else {
-            console.log('[CV] Falling back to drawImage(video) for frame delivery');
             this.startDrawImageLoop();
         }
     }

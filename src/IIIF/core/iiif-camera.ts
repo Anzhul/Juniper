@@ -4,6 +4,7 @@ import type { EasingFunction } from './easing';
 import { easeOutQuart } from './easing';
 import { Spring } from './spring';
 import { CAMERA_CONFIG } from '../config';
+import type { CameraConfig } from '../types';
 
 /**
  * Camera system with spring-based interactive animations and easing-based programmatic animations.
@@ -40,6 +41,9 @@ interface InteractiveState {
     // Track which world point is under the cursor (anchor point approach)
     anchorWorldX?: number;
     anchorWorldY?: number;
+    // Raw cursor position from last wheel event (not animated by springs)
+    lastWheelCanvasX?: number;
+    lastWheelCanvasY?: number;
     // Springs for smooth animation (transient state, not source of truth)
     canvasXSpring: Spring;
     canvasYSpring: Spring;
@@ -55,6 +59,13 @@ export class Camera {
     viewport: Viewport;
     world: World;
 
+    /** Zoom factor for mouse wheel and keyboard +/- */
+    readonly wheelZoomFactor: number;
+    /** Sensitivity multiplier for pinch-to-zoom (1.0 = raw finger ratio) */
+    readonly pinchSensitivity: number;
+    /** Zoom factor for double-tap */
+    readonly doubleTapZoomFactor: number;
+
     private programmaticAnimation?: ProgrammaticAnimation;
 
     private interactiveState: InteractiveState;
@@ -63,12 +74,26 @@ export class Camera {
     private lastImmediateRequestTime: number = 0;
     private tileUpdateTimer: number | null = null;
 
-    // Use centralized config
-    private readonly CONFIG = CAMERA_CONFIG;
+    // Merged config (defaults + user overrides)
+    private readonly CONFIG: { [K in keyof typeof CAMERA_CONFIG]: number };
 
-    constructor(viewport: Viewport, world: World) {
+    constructor(viewport: Viewport, world: World, options?: CameraConfig) {
         this.viewport = viewport;
         this.world = world;
+
+        // Merge user options with defaults
+        const springStiffness = options?.springStiffness ?? CAMERA_CONFIG.SPRING_STIFFNESS;
+        const animationTime = options?.animationTime ?? CAMERA_CONFIG.ANIMATION_TIME;
+        this.wheelZoomFactor = options?.wheelZoomFactor ?? CAMERA_CONFIG.ZOOM_FACTOR;
+        this.pinchSensitivity = options?.pinchSensitivity ?? 1.0;
+        this.doubleTapZoomFactor = options?.doubleTapZoomFactor ?? 2.0;
+        this.CONFIG = {
+            ...CAMERA_CONFIG,
+            SPRING_STIFFNESS: springStiffness,
+            ANIMATION_TIME: animationTime,
+            ZOOM_THROTTLE: options?.zoomThrottle ?? CAMERA_CONFIG.ZOOM_THROTTLE,
+            ZOOM_FACTOR: this.wheelZoomFactor,
+        };
 
         // Initialize interactive state with springs
         this.interactiveState = {
@@ -76,18 +101,18 @@ export class Camera {
             anchorWorldY: undefined,
             canvasXSpring: new Spring({
                 initial: 0,
-                springStiffness: this.CONFIG.SPRING_STIFFNESS,
-                animationTime: this.CONFIG.ANIMATION_TIME
+                springStiffness,
+                animationTime
             }),
             canvasYSpring: new Spring({
                 initial: 0,
-                springStiffness: this.CONFIG.SPRING_STIFFNESS,
-                animationTime: this.CONFIG.ANIMATION_TIME
+                springStiffness,
+                animationTime
             }),
             cameraZSpring: new Spring({
                 initial: viewport.cameraZ,
-                springStiffness: this.CONFIG.SPRING_STIFFNESS,
-                animationTime: this.CONFIG.ANIMATION_TIME,
+                springStiffness,
+                animationTime,
                 exponential: true  // Exponential for zoom feels consistent
             }),
             isDragging: false,
@@ -428,10 +453,9 @@ export class Camera {
         }
 
         // Calculate new scale
-        const zoomFactor = 1.5;
         const newScale = event.deltaY < 0
-            ? this.viewport.scale * zoomFactor
-            : this.viewport.scale / zoomFactor;
+            ? this.viewport.scale * this.wheelZoomFactor
+            : this.viewport.scale / this.wheelZoomFactor;
 
         const clampedScale = Math.max(
             this.viewport.minScale,
@@ -445,17 +469,19 @@ export class Camera {
         // Spring to new zoom
         state.cameraZSpring.springTo(clampedZ);
 
-        // Update anchor to cursor position (zoom focal point)
-        const worldPoint = this.viewport.canvasToWorldPoint(canvasX, canvasY);
-        state.anchorWorldX = worldPoint.x;
-        state.anchorWorldY = worldPoint.y;
+        // Update anchor to cursor position (zoom focal point).
+        // Compare against raw cursor position from the last wheel event (not the
+        // animated spring value) so we detect real mouse movement, not spring lag.
+        const cursorMoved = state.lastWheelCanvasX === undefined ||
+            Math.abs(canvasX - state.lastWheelCanvasX) > 5 ||
+            Math.abs(canvasY - state.lastWheelCanvasY!) > 5;
+        state.lastWheelCanvasX = canvasX;
+        state.lastWheelCanvasY = canvasY;
 
-        // Reset canvas springs if cursor moved significantly
-        const dx = canvasX - state.canvasXSpring.current.value;
-        const dy = canvasY - state.canvasYSpring.current.value;
-        const movedSignificantly = (dx * dx + dy * dy) > 100;
-
-        if (isFirstInteraction || movedSignificantly) {
+        if (isFirstInteraction || cursorMoved) {
+            const worldPoint = this.viewport.canvasToWorldPoint(canvasX, canvasY);
+            state.anchorWorldX = worldPoint.x;
+            state.anchorWorldY = worldPoint.y;
             state.canvasXSpring.resetTo(canvasX);
             state.canvasYSpring.resetTo(canvasY);
         }
@@ -488,8 +514,9 @@ export class Camera {
             state.cameraZSpring.current.time = now;
         }
 
-        // Calculate target scale from current scale * pinch ratio
-        const newScale = this.viewport.scale * scaleFactor;
+        // Calculate target scale from current scale * pinch ratio, with sensitivity
+        const adjustedFactor = 1 + (scaleFactor - 1) * this.pinchSensitivity;
+        const newScale = this.viewport.scale * adjustedFactor;
         const clampedScale = Math.max(
             this.viewport.minScale,
             Math.min(this.viewport.maxScale, newScale)
@@ -516,7 +543,7 @@ export class Camera {
      * Handle double-tap zoom (delegates to programmatic zoom)
      */
     handleDoubleTap(canvasX: number, canvasY: number) {
-        const targetScale = this.viewport.scale * 2.0;
+        const targetScale = this.viewport.scale * this.doubleTapZoomFactor;
         this.zoom(targetScale, 300, easeOutQuart, canvasX, canvasY);
     }
 
@@ -651,6 +678,8 @@ export class Camera {
         // Reset to idle so the new input starts fresh
         state.anchorWorldX = undefined;
         state.anchorWorldY = undefined;
+        state.lastWheelCanvasX = undefined;
+        state.lastWheelCanvasY = undefined;
         state.isDragging = false;
         state.isIdle = true;
         state.lastInputType = newType;

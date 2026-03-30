@@ -67,8 +67,6 @@ export class WebGPURenderer extends RendererBase {
 
             const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
             this.format = preferredFormat;
-            console.log('Using canvas format:', preferredFormat);
-
             this.context.configure({
                 device: this.device,
                 format: preferredFormat,
@@ -81,7 +79,6 @@ export class WebGPURenderer extends RendererBase {
             this.createMSAATexture();
             this.createMipPipeline();
 
-            console.log('WebGPU initialized successfully (4x MSAA)');
         } catch (error) {
             console.error('Failed to initialize WebGPU:', error);
         }

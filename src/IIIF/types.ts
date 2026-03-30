@@ -12,15 +12,29 @@ import type { ParsedAnnotationPage } from './iiif-parser';
 /** Panel visibility states */
 export type PanelVisibility = 'show' | 'hide' | 'show-open' | 'show-closed';
 
+/** Responsive panel visibility — set different visibility per breakpoint */
+export interface ResponsivePanelVisibility {
+    /** Desktop (>1024px). Also used as the fallback for omitted breakpoints. */
+    desktop?: PanelVisibility;
+    /** Tablet (481px–1024px). Falls back to desktop if omitted. */
+    tablet?: PanelVisibility;
+    /** Mobile (≤480px). Falls back to tablet, then desktop if omitted. */
+    mobile?: PanelVisibility;
+}
+
+/** A panel's visibility can be a simple string or a responsive config object */
+export type PanelVisibilityConfig = PanelVisibility | ResponsivePanelVisibility;
+
 /** Panel configuration for IIIFViewer */
 export interface IIIFViewerPanels {
-    settings?: PanelVisibility;
-    navigation?: PanelVisibility;
-    pages?: PanelVisibility;
-    manifest?: PanelVisibility;
-    annotations?: PanelVisibility;
-    gesture?: PanelVisibility;
-    compare?: PanelVisibility;
+    settings?: PanelVisibilityConfig;
+    navigation?: PanelVisibilityConfig;
+    pages?: PanelVisibilityConfig;
+    minimap?: PanelVisibilityConfig;
+    manifest?: PanelVisibilityConfig;
+    annotations?: PanelVisibilityConfig;
+    gesture?: PanelVisibilityConfig;
+    compare?: PanelVisibilityConfig;
 }
 
 /** Toolbar configuration */
@@ -44,6 +58,26 @@ export interface ToolbarButton {
     onClick: () => void;
 }
 
+/** Camera animation and zoom behavior configuration */
+export interface CameraConfig {
+    /** Zoom factor for mouse wheel and keyboard +/- (default: 1.5) */
+    wheelZoomFactor?: number;
+    /** Sensitivity multiplier for pinch-to-zoom on touch devices (default: 1.0). Values > 1 amplify, < 1 dampen. */
+    pinchSensitivity?: number;
+    /** Zoom factor for double-tap on touch devices (default: 2.0) */
+    doubleTapZoomFactor?: number;
+    /** Minimum zoom as a multiplier of fit-to-view scale (default: 0.2). E.g., 0.5 = can zoom out to half the fit scale. */
+    minZoom?: number;
+    /** Maximum zoom as a multiplier of fit-to-view scale (default: 10). E.g., 20 = can zoom in to 20x the fit scale. */
+    maxZoom?: number;
+    /** Spring stiffness for interactive animations (default: 6.5) */
+    springStiffness?: number;
+    /** Animation time for spring physics in seconds (default: 1.25) */
+    animationTime?: number;
+    /** Minimum time between wheel zoom events in ms (default: 80) */
+    zoomThrottle?: number;
+}
+
 /** Main viewer configuration options */
 export interface IIIFViewerOptions {
     renderer?: 'webgpu' | 'webgl' | 'canvas2d' | 'auto';
@@ -56,6 +90,14 @@ export interface IIIFViewerOptions {
     panels?: IIIFViewerPanels;
     suppressNavigation?: boolean;
     suppressSettings?: boolean;
+    /** Apply a named preset ('minimal', 'viewer', 'full'). Individual options override preset values. */
+    preset?: 'minimal' | 'viewer' | 'full';
+    /** Tile detail factor (0–1). Lower = more detail, higher bandwidth. Default: 0.65 */
+    distanceDetail?: number;
+    /** Automatically call listen() and startRenderLoop() on construction. Default: false */
+    autoStart?: boolean;
+    /** Camera animation and zoom behavior configuration */
+    camera?: CameraConfig;
 }
 
 // ============================================================
@@ -237,6 +279,14 @@ export interface LookAtOptions {
     duration?: number;
 }
 
+/** Options for the fitBounds() navigation method */
+export interface FitBoundsOptions {
+    /** Animation duration in milliseconds (default: 500) */
+    duration?: number;
+    /** Padding in CSS pixels around the region (default: 50) */
+    padding?: number;
+}
+
 // ============================================================
 // COMPARISON MODE TYPES
 // ============================================================
@@ -320,7 +370,6 @@ export interface InputHandlerDeps {
     container: HTMLElement;
     camera: CameraInterface;
     viewport: ViewportInterface;
-    cachedContainerRect: DOMRect;
     touchState: TouchState;
     abortController: AbortController;
     markDirty: () => void;
@@ -334,6 +383,9 @@ export interface InputHandlerDeps {
 
 /** Camera interface for input handlers */
 export interface CameraInterface {
+    readonly wheelZoomFactor: number;
+    readonly pinchSensitivity: number;
+    readonly doubleTapZoomFactor: number;
     startInteractivePan(canvasX: number, canvasY: number): void;
     updateInteractivePan(canvasX: number, canvasY: number): void;
     endInteractivePan(): void;

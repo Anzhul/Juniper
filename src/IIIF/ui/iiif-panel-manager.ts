@@ -257,11 +257,13 @@ export class PanelManager {
             if (spacer && spacer.parentElement) {
                 spacer.style.height = '0px';
                 const s = spacer;
-                const onEnd = () => {
-                    s.removeEventListener('transitionend', onEnd);
-                    s.remove();
+                const cleanup = () => {
+                    s.removeEventListener('transitionend', cleanup);
+                    if (s.parentElement) s.remove();
                 };
-                s.addEventListener('transitionend', onEnd);
+                s.addEventListener('transitionend', cleanup);
+                // Fallback: remove after transition duration in case transitionend doesn't fire
+                setTimeout(cleanup, 250);
             }
             spacerDock = null;
         };
@@ -294,15 +296,24 @@ export class PanelManager {
                     spacer!.style.height = `${panelHeight}px`;
                     spacerDock = parentDock;
                 }
+                // Set absolute positioning BEFORE appending to container
+                // to prevent a layout flash where the panel briefly
+                // participates in normal flow as position:relative.
+                panel.style.position = 'absolute';
+                panel.style.right = 'auto';
+                panel.style.bottom = 'auto';
+                panel.style.transform = 'none';
+                panel.style.left = `${startLeft}px`;
+                panel.style.top = `${startTop}px`;
                 this.container.appendChild(panel);
+            } else {
+                panel.style.position = 'absolute';
+                panel.style.right = 'auto';
+                panel.style.bottom = 'auto';
+                panel.style.transform = 'none';
+                panel.style.left = `${startLeft}px`;
+                panel.style.top = `${startTop}px`;
             }
-
-            panel.style.position = 'absolute';
-            panel.style.right = 'auto';
-            panel.style.bottom = 'auto';
-            panel.style.transform = 'none';
-            panel.style.left = `${startLeft}px`;
-            panel.style.top = `${startTop}px`;
         };
 
         const onPointerDown = (clientX: number, clientY: number) => {

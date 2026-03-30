@@ -77,7 +77,7 @@
 
 .iiif-panel {
   position: absolute;
-  z-index: 1500;
+  z-index: var(--iiif-panel-z-index);
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
@@ -96,7 +96,7 @@
   align-items: center;
   padding: 6px 10px;
   border-bottom: 1px solid var(--border-color-light);
-  font-size: 10px;
+  font-size: var(--iiif-panel-header-font-size);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -120,7 +120,7 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  z-index: 1500;
+  z-index: var(--iiif-panel-z-index);
 }
 .iiif-navigation-wrapper.dragging {
   opacity: 0.9;
@@ -162,8 +162,8 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  width: 28px;
-  height: 28px;
+  width: var(--iiif-nav-btn-size);
+  height: var(--iiif-nav-btn-size);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -206,7 +206,7 @@
 /* Panel Empty State */
 .iiif-panel-empty {
   padding: 8px 10px;
-  font-size: 11px;
+  font-size: var(--iiif-panel-body-font-size);
   color: var(--text-muted);
   font-style: italic;
 }
@@ -234,9 +234,9 @@
 }
 
 /* Panel Resize Handles */
-.iiif-panel {
-  position: relative;
-}
+/* Note: position:absolute (base) already establishes a containing block
+   for the absolutely-positioned resize handles; docked panels get
+   position:relative via the .iiif-dock > .iiif-panel rule. */
 .iiif-panel.resizable {
   overflow: visible;
 }
@@ -344,8 +344,8 @@ body.iiif-resizing-nesw * {
 
 .iiif-toolbar {
   position: absolute;
-  height: 2.2rem;
-  top: clamp(2rem, 5vh, 3rem);
+  height: var(--iiif-toolbar-height);
+  top: var(--iiif-toolbar-offset);
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -392,7 +392,7 @@ body.iiif-resizing-nesw * {
   align-items: center;
   justify-content: center;
   width: 1.4rem;
-  min-height: 2.2rem;
+  min-height: var(--iiif-toolbar-height);
   cursor: grab;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
@@ -434,7 +434,7 @@ body.iiif-resizing-nesw * {
   align-items: center;
   justify-content: center;
   height: 100%;
-  min-width: 2rem;
+  min-width: var(--iiif-toolbar-btn-min-width);
   margin: 0 0.1rem;
 }
 .iiif-toolbar-button:hover {
@@ -478,8 +478,8 @@ body.iiif-resizing-nesw * {
   left: 8px;
   top: 50%;
   transform: translateY(-50%);
-  max-height: 70vh;
-  width: 72px;
+  max-height: var(--iiif-canvas-nav-max-height);
+  width: var(--iiif-canvas-nav-width);
 }
 
 .iiif-canvas-nav-header {
@@ -529,6 +529,76 @@ body.iiif-resizing-nesw * {
 }
 
 /* =============================================
+   4b. Minimap Panel
+   ============================================= */
+
+.iiif-minimap {
+  width: 180px;
+}
+
+.iiif-minimap .iiif-panel-body {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0 0 var(--iiif-border-radius) var(--iiif-border-radius);
+}
+
+.iiif-minimap-view {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  cursor: crosshair;
+  background: var(--input-bg);
+}
+
+.iiif-minimap-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  display: block;
+}
+
+.iiif-minimap-rect {
+  position: absolute;
+  border: 1.5px solid rgba(var(--iiif-color-primary), 0.9);
+  background: rgba(var(--iiif-color-primary), 0.12);
+  pointer-events: none;
+  min-width: 4px;
+  min-height: 4px;
+  box-sizing: border-box;
+}
+
+.iiif-minimap-toolbar {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  border-top: 1px solid var(--border-light);
+}
+
+.iiif-minimap-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.iiif-minimap-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+.iiif-minimap-btn.active {
+  background: var(--active-bg);
+  color: rgb(var(--iiif-color-primary));
+}
+
+/* =============================================
    5. Table of Contents
    ============================================= */
 
@@ -536,9 +606,9 @@ body.iiif-resizing-nesw * {
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  max-height: 70vh;
-  min-width: 160px;
-  max-width: 280px;
+  max-height: var(--iiif-canvas-nav-max-height);
+  min-width: var(--iiif-toc-min-width);
+  max-width: var(--iiif-toc-max-width);
 }
 
 .iiif-toc-list {
@@ -589,7 +659,7 @@ body.iiif-resizing-nesw * {
    ============================================= */
 
 .iiif-annotation-panel {
-  max-height: 40vh;
+  max-height: var(--iiif-annotation-max-height);
   min-width: 120px;
   max-width: 240px;
 }
@@ -1013,6 +1083,9 @@ body.iiif-resizing-nesw * {
 .hide-pages .iiif-canvas-nav {
   display: none !important;
 }
+.hide-minimap .iiif-minimap {
+  display: none !important;
+}
 .hide-manifest .iiif-manifest-panel {
   display: none !important;
 }
@@ -1024,6 +1097,53 @@ body.iiif-resizing-nesw * {
 }
 .hide-compare .iiif-compare-panel {
   display: none !important;
+}
+.hide-settings .iiif-settings-panel {
+  display: none !important;
+}
+
+/* =============================================
+   Responsive Panel Visibility
+   Mobile: ≤480px, Tablet: 481px–1024px, Desktop: >1024px
+   ============================================= */
+
+/* Mobile (≤480px) */
+@media (max-width: 480px) {
+  .hide-navigation-mobile .iiif-toc,
+  .hide-navigation-mobile .iiif-navigation-wrapper { display: none !important; }
+  .hide-pages-mobile .iiif-canvas-nav { display: none !important; }
+  .hide-minimap-mobile .iiif-minimap { display: none !important; }
+  .hide-manifest-mobile .iiif-manifest-panel { display: none !important; }
+  .hide-annotations-mobile .iiif-annotation-panel { display: none !important; }
+  .hide-vision-mobile .iiif-cv-panel { display: none !important; }
+  .hide-compare-mobile .iiif-compare-panel { display: none !important; }
+  .hide-settings-mobile .iiif-settings-panel { display: none !important; }
+}
+
+/* Tablet (481px–1024px) */
+@media (min-width: 481px) and (max-width: 1024px) {
+  .hide-navigation-tablet .iiif-toc,
+  .hide-navigation-tablet .iiif-navigation-wrapper { display: none !important; }
+  .hide-pages-tablet .iiif-canvas-nav { display: none !important; }
+  .hide-minimap-tablet .iiif-minimap { display: none !important; }
+  .hide-manifest-tablet .iiif-manifest-panel { display: none !important; }
+  .hide-annotations-tablet .iiif-annotation-panel { display: none !important; }
+  .hide-vision-tablet .iiif-cv-panel { display: none !important; }
+  .hide-compare-tablet .iiif-compare-panel { display: none !important; }
+  .hide-settings-tablet .iiif-settings-panel { display: none !important; }
+}
+
+/* Desktop (>1024px) */
+@media (min-width: 1025px) {
+  .hide-navigation-desktop .iiif-toc,
+  .hide-navigation-desktop .iiif-navigation-wrapper { display: none !important; }
+  .hide-pages-desktop .iiif-canvas-nav { display: none !important; }
+  .hide-minimap-desktop .iiif-minimap { display: none !important; }
+  .hide-manifest-desktop .iiif-manifest-panel { display: none !important; }
+  .hide-annotations-desktop .iiif-annotation-panel { display: none !important; }
+  .hide-vision-desktop .iiif-cv-panel { display: none !important; }
+  .hide-compare-desktop .iiif-compare-panel { display: none !important; }
+  .hide-settings-desktop .iiif-settings-panel { display: none !important; }
 }
 
 /* Hide main viewer's panels when in compare mode (direct children only) */

@@ -150,6 +150,42 @@
   /** Fast transition duration */
   --iiif-transition-fast: 0.15s;
 
+  /** Toolbar height */
+  --iiif-toolbar-height: 2.2rem;
+
+  /** Toolbar button minimum width */
+  --iiif-toolbar-btn-min-width: 2rem;
+
+  /** Toolbar offset from top edge */
+  --iiif-toolbar-offset: clamp(2rem, 5vh, 3rem);
+
+  /** Panel z-index */
+  --iiif-panel-z-index: 1500;
+
+  /** Panel header font size */
+  --iiif-panel-header-font-size: 10px;
+
+  /** Panel body font size */
+  --iiif-panel-body-font-size: 11px;
+
+  /** Navigation zoom button size */
+  --iiif-nav-btn-size: 28px;
+
+  /** Canvas navigator (pages panel) width */
+  --iiif-canvas-nav-width: 72px;
+
+  /** Canvas navigator max height */
+  --iiif-canvas-nav-max-height: 70vh;
+
+  /** Table of contents min width */
+  --iiif-toc-min-width: 160px;
+
+  /** Table of contents max width */
+  --iiif-toc-max-width: 280px;
+
+  /** Annotation panel max height */
+  --iiif-annotation-max-height: 40vh;
+
 
   /* =========================================
      TYPOGRAPHY

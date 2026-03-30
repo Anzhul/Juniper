@@ -11,34 +11,22 @@ if (container) {
     const defaultManifest = 'https://iiif.harvardartmuseums.org/manifests/object/299843';
     const url = manifestUrl ?? defaultManifest;
 
-    const viewer = new IIIFViewer(container, {
-        panels: {
-            settings: 'show-closed',
-            navigation: 'show',
-            pages: 'show',
-            manifest: 'show-closed',
-            annotations: 'show',
-            compare: 'show',
-            gesture: 'show-closed'
-        },
-        enableOverlays: true
-    });
+    // Use the static factory for a simple one-liner setup,
+    // or fall back to manual init when loading from a config URL.
+    const viewerPromise = configParam
+        ? (async () => {
+            const viewer = new IIIFViewer(container, { preset: 'full', autoStart: true });
+            const config: ViewerConfig = await fetch(configParam).then(res => res.json());
+            await viewer.loadConfig(config);
+            return viewer;
+        })()
+        : IIIFViewer.create(container, url, { panels: { minimap: 'show', pages: 'hide', settings: 'show-closed' } });
 
-    // Expose viewer globally for debugging/testing
-    (window as any).viewer = viewer;
+    viewerPromise
+        .then((viewer) => {
+            // Expose viewer globally for debugging/testing
+            (window as any).viewer = viewer;
 
-    viewer.listen();
-    viewer.startRenderLoop();
-
-    // Load from config JSON URL if provided, otherwise use manifest URL
-    const loadPromise = configParam
-        ? fetch(configParam)
-            .then(res => res.json())
-            .then((config: ViewerConfig) => viewer.loadConfig(config))
-        : viewer.loadUrl(url);
-
-    loadPromise
-        .then(() => {
             // Custom HTML annotations (coordinates are in image pixels)
 
             // Fade transition
