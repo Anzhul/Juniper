@@ -14,12 +14,16 @@ export type PanelVisibility = 'show' | 'hide' | 'show-open' | 'show-closed';
 
 /** Responsive panel visibility — set different visibility per breakpoint */
 export interface ResponsivePanelVisibility {
+    /** Shorthand visibility for all breakpoints (alternative to desktop/tablet/mobile) */
+    visibility?: PanelVisibility;
     /** Desktop (>1024px). Also used as the fallback for omitted breakpoints. */
     desktop?: PanelVisibility;
     /** Tablet (481px–1024px). Falls back to desktop if omitted. */
     tablet?: PanelVisibility;
     /** Mobile (≤480px). Falls back to tablet, then desktop if omitted. */
     mobile?: PanelVisibility;
+    /** Initial dock position (e.g. 'top-left', 'bottom-right') */
+    dock?: DockPosition;
 }
 
 /** A panel's visibility can be a simple string or a responsive config object */
@@ -135,8 +139,8 @@ export interface ViewerConfigAnnotation {
     type?: string;
     /** Color for the annotation marker */
     color?: string;
-    /** Whether to scale with zoom */
-    scaleWithZoom?: boolean;
+    /** Whether to scale with zoom, or { min, max } to clamp scale */
+    scaleWithZoom?: boolean | { min: number; max: number };
     /** CSS styles */
     style?: Record<string, string>;
     /** Popup content (text or HTML) */
@@ -333,11 +337,12 @@ export interface CustomAnnotationSpec {
         type?: string;
         color?: string;
         style?: Record<string, string | undefined>;
-        scaleWithZoom?: boolean;
+        scaleWithZoom?: boolean | { min: number; max: number };
         activeClass?: string;
         inactiveClass?: string;
         popup?: string | HTMLElement;
         popupPosition?: { x: number; y: number };
+        popupScale?: { min: number; max: number };
     };
 }
 

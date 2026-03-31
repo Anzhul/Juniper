@@ -5,7 +5,7 @@ The overlay system allows you to layer HTML elements on top of your IIIF images 
 ## Features
 
 - **Automatic Positioning**: Overlays are positioned in image pixel coordinates and automatically transform with camera movements
-- **Scale Control**: Overlays can scale with zoom or remain fixed size
+- **Scale Control**: Overlays can scale with zoom, remain fixed size, or clamp between bounds
 - **Interactive Elements**: Support for buttons, draggable elements, and other interactive HTML
 - **Performance**: Efficient updates using CSS transforms
 - **Visibility Culling**: Overlays outside the viewport are automatically hidden
@@ -64,7 +64,7 @@ viewer.overlayManager?.addOverlay({
     imageWidth: 200,           // Width in image pixels
     imageHeight: 100,          // Height in image pixels
     imageId: 'image-id',       // Which image to overlay on
-    scaleWithZoom: true        // Whether to scale with zoom (default: true)
+    scaleWithZoom: true        // true | false | { min: number, max: number }
 });
 ```
 
@@ -115,6 +115,31 @@ Removes all overlays.
 ```typescript
 viewer.overlayManager?.clearAllOverlays();
 ```
+
+#### `showPopup(overlayId, content, offset?, scaleWithZoom?): HTMLDivElement | null`
+
+Shows a popup anchored to an overlay. The popup is an independent div in a separate layer — never clipped or scaled by the annotation.
+
+```typescript
+viewer.overlayManager?.showPopup(
+    'my-overlay',
+    '<h4>Details</h4><p>More info here</p>',
+    { x: 8, y: 0 },                    // offset from top-right corner
+    { min: 0.5, max: 2 }               // optional scale clamping
+);
+```
+
+#### `hidePopup(overlayId: string): void`
+
+Removes the popup for an overlay.
+
+```typescript
+viewer.overlayManager?.hidePopup('my-overlay');
+```
+
+#### `hasPopup(overlayId: string): boolean`
+
+Checks if a popup is currently shown for an overlay.
 
 #### `canvasToImageCoords(canvasX: number, canvasY: number, imageId: string)`
 
@@ -209,6 +234,27 @@ viewer.overlayManager?.addOverlay({
     imageHeight: 20,
     imageId: 'my-image',
     scaleWithZoom: false  // Stays same size at all zoom levels
+});
+```
+
+### Clamped-Scale Marker (scales with zoom, clamped between bounds)
+
+```typescript
+const marker = document.createElement('div');
+marker.style.width = '24px';
+marker.style.height = '24px';
+marker.style.backgroundColor = '#ff9800';
+marker.style.borderRadius = '50%';
+marker.style.border = '2px solid white';
+
+viewer.overlayManager?.addOverlay({
+    id: 'clamped-marker',
+    element: marker,
+    worldX: 1500,
+    worldY: 1200,
+    worldWidth: 24,
+    worldHeight: 24,
+    scaleWithZoom: { min: 0.5, max: 3 }  // Never smaller than 0.5x or larger than 3x
 });
 ```
 

@@ -94,7 +94,8 @@ The [International Image Interoperability Framework (IIIF)](https://iiif.io/) is
 | **Side-by-Side** | Draggable divider between two images |
 | **Synchronized** | Linked cameras - pan/zoom one updates both |
 | **Overlay** | Image B with adjustable opacity over Image A |
-| **URL Parameter** | `?compare=URL` auto-loads comparison on startup |
+| **Programmatic API** | `viewer.addCompareUrl(url)` — same as typing a URL in the Compare panel |
+| **Auto-Enter** | `addCompareUrl` enters compare mode automatically if not already active |
 
 ### User Interface
 

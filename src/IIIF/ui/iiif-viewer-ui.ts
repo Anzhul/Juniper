@@ -11,7 +11,7 @@ import { AnnotationManager, MOTIVATION_COLORS, DEFAULT_MOTIVATION_COLOR } from '
 import { IIIFOverlayManager } from '../features/iiif-overlay';
 import { EYE_SVG } from './icons';
 import type { ParsedManifest, ParsedRange, ParsedCanvas } from '../iiif-parser';
-import type { IIIFViewerOptions, IIIFViewerPanels, PanelVisibility, PanelVisibilityConfig, LayoutState, CustomAnnotationSpec } from '../types';
+import type { IIIFViewerOptions, IIIFViewerPanels, PanelVisibility, PanelVisibilityConfig, DockPosition, LayoutState, CustomAnnotationSpec } from '../types';
 
 // Dynamic import types (for lazy loading modules)
 import type { CVController } from '../features/iiif-cv';
@@ -20,15 +20,24 @@ import type { CVController } from '../features/iiif-cv';
  * Resolve a PanelVisibilityConfig into per-breakpoint PanelVisibility values.
  * Falls back: mobile → tablet → desktop.
  */
-function resolveResponsive(config: PanelVisibilityConfig | undefined): { desktop: PanelVisibility; tablet: PanelVisibility; mobile: PanelVisibility } | undefined {
+interface ResolvedPanel {
+    desktop: PanelVisibility;
+    tablet: PanelVisibility;
+    mobile: PanelVisibility;
+    dock?: DockPosition;
+}
+
+function resolveResponsive(config: PanelVisibilityConfig | undefined): ResolvedPanel | undefined {
     if (config === undefined) return undefined;
     if (typeof config === 'string') {
         return { desktop: config, tablet: config, mobile: config };
     }
-    const desktop = config.desktop ?? 'show';
+    // { visibility: 'show', dock: 'top-left' } shorthand
+    const base = config.visibility;
+    const desktop = config.desktop ?? base ?? 'show';
     const tablet = config.tablet ?? desktop;
     const mobile = config.mobile ?? tablet;
-    return { desktop, tablet, mobile };
+    return { desktop, tablet, mobile, dock: config.dock };
 }
 
 export interface ViewerUICallbacks {
@@ -97,7 +106,7 @@ export class ViewerUI {
     private cb: ViewerUICallbacks;
 
     // Resolved responsive panel configs (cached at construction)
-    private resolvedPanels: { [K in keyof IIIFViewerPanels]?: { desktop: PanelVisibility; tablet: PanelVisibility; mobile: PanelVisibility } } = {};
+    private resolvedPanels: { [K in keyof IIIFViewerPanels]?: ResolvedPanel } = {};
 
     // Minimap state
     private minimapRect?: HTMLDivElement;
@@ -223,7 +232,7 @@ export class ViewerUI {
             className: 'iiif-canvas-nav',
             title: 'Pages',
             initiallyCollapsed: this.getDesktopVisibility('pages') === 'hide' || this.getDesktopVisibility('pages') === 'show-closed',
-            dock: 'bottom-left',
+            dock: this.resolvedPanels.pages?.dock ?? 'bottom-left',
         });
         this.canvasNavContainer = panel;
         this.canvasNavList = body;
@@ -235,7 +244,7 @@ export class ViewerUI {
             className: 'iiif-minimap',
             title: 'Map',
             initiallyCollapsed: this.getDesktopVisibility('minimap') === 'hide' || this.getDesktopVisibility('minimap') === 'show-closed',
-            dock: 'bottom-left',
+            dock: this.resolvedPanels.minimap?.dock ?? 'bottom-left',
         });
         this.minimapPanel = panel;
 
@@ -490,7 +499,7 @@ export class ViewerUI {
             className: 'iiif-toc',
             title: 'Contents',
             initiallyCollapsed: this.getDesktopVisibility('navigation') === 'hide' || this.getDesktopVisibility('navigation') === 'show-closed',
-            dock: 'top-right',
+            dock: this.resolvedPanels.navigation?.dock ?? 'top-right',
         });
         this.tocContainer = panel;
         this.tocList = body;
@@ -502,7 +511,7 @@ export class ViewerUI {
             className: 'iiif-manifest-panel',
             title: 'Manifest',
             initiallyCollapsed: this.getDesktopVisibility('manifest') === 'hide' || this.getDesktopVisibility('manifest') === 'show-closed',
-            dock: 'top-right',
+            dock: this.resolvedPanels.manifest?.dock ?? 'top-right',
         });
         this.metadataPanelBody = body;
     }
@@ -512,7 +521,7 @@ export class ViewerUI {
             className: 'iiif-annotation-panel',
             title: 'Annotations',
             initiallyCollapsed: this.getDesktopVisibility('annotations') === 'hide' || this.getDesktopVisibility('annotations') === 'show-closed',
-            dock: 'top-right',
+            dock: this.resolvedPanels.annotations?.dock ?? 'top-right',
         });
         this.annotationPanel = panel;
         this.annotationPanelBody = body;
@@ -523,7 +532,7 @@ export class ViewerUI {
             className: 'iiif-cv-panel',
             title: 'Gesture',
             initiallyCollapsed: this.getDesktopVisibility('gesture') === 'hide' || this.getDesktopVisibility('gesture') === 'show-closed',
-            dock: 'top-left',
+            dock: this.resolvedPanels.gesture?.dock ?? 'top-left',
         });
         this.cvPanel = panel;
         this.cvPanelBody = body;
@@ -614,7 +623,7 @@ export class ViewerUI {
             className: 'iiif-compare-panel',
             title: 'Compare',
             initiallyCollapsed: true, // Always collapsed — expanding enters compare mode
-            dock: 'bottom-right',
+            dock: this.resolvedPanels.compare?.dock ?? 'bottom-right',
         });
         this.comparePanel = panel;
 
@@ -868,8 +877,9 @@ export class ViewerUI {
         // Make settings panel draggable
         this.panelManager.makePanelDraggable(this.settingsPanel, header);
 
-        // Settings panel in top-right dock
-        this.panelManager.getDocks().get('top-right')!.appendChild(this.settingsPanel);
+        // Settings panel dock (configurable, defaults to top-right)
+        const settingsDock = this.resolvedPanels.settings?.dock ?? 'top-right';
+        this.panelManager.getDocks().get(settingsDock)!.appendChild(this.settingsPanel);
     }
 
     // ============================================================

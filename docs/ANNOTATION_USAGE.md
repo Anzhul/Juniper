@@ -56,7 +56,10 @@ Adds an annotation to the viewer.
         width?: number;
         height?: number;
     };
-    scaleWithZoom?: boolean;       // Default: true
+    scaleWithZoom?: boolean | { min: number; max: number };  // Default: true
+    popup?: string | HTMLElement;   // Popup content on click
+    popupPosition?: { x: number; y: number };  // Offset from top-right corner
+    popupScale?: { min: number; max: number }; // Clamp popup scale
 }
 ```
 
@@ -190,17 +193,40 @@ viewer.annotationManager?.clearAllAnnotations();
   - Cursor remains 'default'
   - Cannot be moved by user
 
-### Automatic Scaling
+### Scaling Options
 
-When `scaleWithZoom: true`:
+**`scaleWithZoom: true`** (default):
 - Annotation scales proportionally with zoom level
 - Text, borders, padding all scale together
 - Define styles at "base" zoom level
 
-When `scaleWithZoom: false`:
-- Annotation stays constant size
+**`scaleWithZoom: false`**:
+- Annotation stays constant size on screen
 - Only position follows pan/zoom
 - Useful for UI markers
+
+**`scaleWithZoom: { min: 0.5, max: 3 }`** — clamped scaling:
+- Scales with zoom like `true`, but clamped between bounds
+- Never shrinks below `min` or grows above `max`
+- Ideal for markers/pins that should mostly track zoom but not become invisibly small or absurdly large
+
+### Popups
+
+Popups are **independent divs** rendered in a separate layer above all overlays. They are never clipped or scaled by the annotation's own transform.
+
+```typescript
+viewer.addAnnotation(100, 200, 0, 0, 'pin', {
+    scaleWithZoom: false,
+    popup: '<h4>Title</h4><p>Description</p>',         // string or HTMLElement
+    popupPosition: { x: 12, y: 0 },                     // offset from top-right corner
+    popupScale: { min: 0.5, max: 2 },                   // clamp popup scale
+});
+```
+
+- Click annotation to toggle popup open/close
+- Popups track their annotation's screen position during pan/zoom
+- Pass an `HTMLElement` for full control over popup content
+- `popupScale` uses the same `clamp(min, viewport.scale, max)` formula as annotations
 
 ### Style Customization
 

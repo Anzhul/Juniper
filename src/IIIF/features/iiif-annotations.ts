@@ -64,16 +64,19 @@ export interface CustomAnnotation {
         /** Height of content area */
         height?: number;
     };
-    /** Whether annotation scales with zoom (default: true) */
-    scaleWithZoom?: boolean;
+    /** Whether annotation scales with zoom (default: true).
+     *  Pass { min, max } to clamp the scale between bounds. */
+    scaleWithZoom?: boolean | { min: number; max: number };
     /** CSS class applied when annotation is active/visible */
     activeClass?: string;
     /** CSS class applied when annotation is inactive/hidden */
     inactiveClass?: string;
     /** Popup content shown when the annotation is clicked */
     popup?: string | HTMLElement;
-    /** Popup position offset in screen pixels from the annotation's top-left corner */
+    /** Popup position offset in screen pixels from the annotation's top-right corner */
     popupPosition?: { x: number; y: number };
+    /** Clamp popup scale between bounds (e.g. { min: 0.5, max: 2 }) */
+    popupScale?: { min: number; max: number };
 }
 
 /** @deprecated Use CustomAnnotation instead */
@@ -137,7 +140,7 @@ export class AnnotationManager {
             worldY: annotation.y,
             worldWidth: annotation.width,
             worldHeight: annotation.height,
-            scaleWithZoom: annotation.scaleWithZoom !== false,
+            scaleWithZoom: annotation.scaleWithZoom ?? true,
             activeClass: annotation.activeClass,
             inactiveClass: annotation.inactiveClass,
         };
@@ -168,7 +171,7 @@ export class AnnotationManager {
             // Add popup on click
             if (annotation.popup) {
                 el.style.cursor = 'pointer';
-                this.attachPopup(el, annotation.popup, annotation.popupPosition);
+                this.attachPopup(annotation.id, el, annotation.popup, annotation.popupPosition, annotation.popupScale);
             }
 
             return el;
@@ -209,7 +212,7 @@ export class AnnotationManager {
         // Add popup on click
         if (annotation.popup) {
             container.style.cursor = 'pointer';
-            this.attachPopup(container, annotation.popup, annotation.popupPosition);
+            this.attachPopup(annotation.id, container, annotation.popup, annotation.popupPosition, annotation.popupScale);
         }
 
         return container;
@@ -217,62 +220,23 @@ export class AnnotationManager {
 
     /**
      * Attach a click-toggled popup to an annotation element.
-     * The popup is a child of the annotation, positioned next to it,
-     * and uses inverse scale to stay at a fixed screen size.
+     * The popup is an independent div in the overlay manager's popup layer —
+     * never clipped or scaled by the annotation's own transform.
      */
-    private attachPopup(container: HTMLElement, content: string | HTMLElement, position?: { x: number; y: number }): void {
-        let popupEl: HTMLDivElement | null = null;
-
-        const show = () => {
-            if (popupEl) return;
-            popupEl = document.createElement('div');
-            popupEl.className = 'iiif-annotation-popup';
-
-            // Custom position from annotation top-left (overrides CSS defaults)
-            if (position) {
-                popupEl.style.left = `${position.x}px`;
-                popupEl.style.top = `${position.y}px`;
-                popupEl.style.marginLeft = '0';
-            }
-            // Stop clicks inside popup from reaching the annotation toggle
-            popupEl.addEventListener('click', (e) => e.stopPropagation());
-            popupEl.addEventListener('mousedown', (e) => e.stopPropagation());
-
-            // Close button
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'iiif-annotation-popup-close';
-            closeBtn.innerHTML = '&times;';
-            closeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                hide();
-            });
-            popupEl.appendChild(closeBtn);
-
-            // Content
-            const body = document.createElement('div');
-            if (typeof content === 'string') {
-                body.textContent = content;
-            } else {
-                body.appendChild(content.cloneNode(true));
-            }
-            popupEl.appendChild(body);
-
-            container.appendChild(popupEl);
-        };
-
-        const hide = () => {
-            if (!popupEl) return;
-            popupEl.remove();
-            popupEl = null;
-        };
-
-        // Click annotation to toggle popup
+    private attachPopup(overlayId: string, container: HTMLElement, content: string | HTMLElement, position?: { x: number; y: number }, popupScale?: { min: number; max: number }): void {
         container.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (popupEl) {
-                hide();
+            if (!this.overlayManager) return;
+
+            if (this.overlayManager.hasPopup(overlayId)) {
+                this.overlayManager.hidePopup(overlayId);
             } else {
-                show();
+                this.overlayManager.showPopup(
+                    overlayId,
+                    content,
+                    position ? { x: position.x, y: position.y } : undefined,
+                    popupScale
+                );
             }
         });
     }

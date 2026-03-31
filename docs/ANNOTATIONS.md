@@ -114,7 +114,10 @@ viewer.clearAnnotations();
 |--------|------|---------|-------------|
 | `id` | `string` | auto-generated | Custom identifier for later removal |
 | `style` | `Record<string, string>` | — | CSS properties applied to the annotation box (e.g. `{ border: '3px solid red' }`) |
-| `scaleWithZoom` | `boolean` | `true` | When `false`, the annotation stays fixed-size regardless of zoom level |
+| `scaleWithZoom` | `boolean \| { min, max }` | `true` | `false` = fixed size; `{ min, max }` = scales with zoom, clamped between bounds |
+| `popup` | `string \| HTMLElement` | — | Popup content shown on click (rendered as independent div, not clipped by annotation) |
+| `popupPosition` | `{ x, y }` | `{ x: 8, y: 0 }` | Popup offset from annotation's top-right corner |
+| `popupScale` | `{ min, max }` | — | Clamp popup scale between bounds (e.g. `{ min: 0.5, max: 2 }`) |
 
 ### Examples
 
@@ -134,6 +137,19 @@ viewer.addAnnotation(500, 300, 200, 100, el, {
 viewer.addAnnotation(750, 400, 20, 20, undefined, {
     scaleWithZoom: false,
     style: { borderRadius: '50%', backgroundColor: '#00ff00' },
+});
+
+// Clamped scaling — scales with zoom but never smaller than 0.5x or larger than 3x
+viewer.addAnnotation(200, 100, 40, 40, undefined, {
+    scaleWithZoom: { min: 0.5, max: 3 },
+    style: { borderRadius: '50%', backgroundColor: '#ff9800' },
+});
+
+// Annotation with a popup (and clamped popup scaling)
+viewer.addAnnotation(500, 500, 0, 0, 'pin', {
+    scaleWithZoom: false,
+    popup: '<h4>Point of Interest</h4><p>Detailed description here</p>',
+    popupScale: { min: 0.5, max: 2 },
 });
 
 // Remove it later

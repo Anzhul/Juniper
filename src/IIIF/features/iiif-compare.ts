@@ -306,7 +306,7 @@ export class ComparisonController {
         this.updateViewers();
     }
 
-    private addEntry(url: string): void {
+    addEntry(url: string): void {
         const label = this.shortenUrl(url);
         this.entries.push({ url, label });
 

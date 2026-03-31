@@ -14,6 +14,13 @@ A complete HTML overlay system for your IIIF WebGPU viewer that allows you to la
 ### 2. Flexible Scaling Options
 - `scaleWithZoom: true` - Overlay grows/shrinks with zoom (default)
 - `scaleWithZoom: false` - Overlay stays fixed size (useful for UI markers)
+- `scaleWithZoom: { min, max }` - Scales with zoom, clamped between bounds
+
+### 3. Independent Popup Layer
+- Popups render as independent divs in a dedicated layer above overlays
+- Never clipped or scaled by the annotation's own transform
+- Track their anchor annotation's screen position each frame
+- Optional `popupScale: { min, max }` clamping
 
 ### 3. Performance Optimized
 - Uses CSS transforms for GPU-accelerated positioning
@@ -174,21 +181,30 @@ viewer.overlayManager?.addOverlay({
 - `getOverlay(id: string): OverlayElement | undefined`
 - `getOverlayIds(): string[]`
 - `clearAllOverlays(): void`
-- `canvasToImageCoords(canvasX, canvasY, imageId): {x, y} | null`
+- `showPopup(overlayId, content, offset?, scaleWithZoom?): HTMLDivElement | null`
+- `hidePopup(overlayId: string): void`
+- `hasPopup(overlayId: string): boolean`
 
 ### OverlayElement Interface
 ```typescript
 interface OverlayElement {
     id: string;
     element: HTMLElement;
-    imageX: number;
-    imageY: number;
-    imageWidth: number;
-    imageHeight: number;
-    imageId: string;
-    scaleWithZoom?: boolean;
+    worldX: number;
+    worldY: number;
+    worldWidth: number;
+    worldHeight: number;
+    scaleWithZoom?: boolean | { min: number; max: number };
+    hidden?: boolean;
+    activeClass?: string;
+    inactiveClass?: string;
 }
 ```
+
+### Popup Methods (IIIFOverlayManager)
+- `showPopup(overlayId, content, offset?, scaleWithZoom?)` - Show popup anchored to overlay
+- `hidePopup(overlayId)` - Remove popup
+- `hasPopup(overlayId)` - Check if popup is open
 
 ## Testing
 

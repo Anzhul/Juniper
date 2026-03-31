@@ -52,11 +52,11 @@ const viewer = await IIIFViewer.create(container, url, {
   panels: {
     navigation: 'show',
     pages: 'show',
-    minimap: 'show',
+    minimap: { visibility: 'show', dock: 'bottom-left' },
     annotations: 'show',
     settings: 'show-closed',
     manifest: 'show-closed',
-    compare: 'show',
+    compare: { visibility: 'show', dock: 'bottom-right' },
     gesture: 'show-closed',
   },
   enableOverlays: true,
@@ -192,14 +192,15 @@ viewer.clearAnnotations();
 | `id` | `string` | Unique identifier |
 | `type` | `string` | Category (shown in annotation panel) |
 | `color` | `string` | Panel indicator color |
-| `scaleWithZoom` | `boolean` | Scale with zoom or stay fixed size |
+| `scaleWithZoom` | `boolean \| { min, max }` | Scale with zoom, fixed size, or clamped between bounds |
 | `style` | `Record<string, string>` | CSS styles applied to the element |
 | `activeClass` | `string` | CSS class when annotation is visible |
 | `inactiveClass` | `string` | CSS class when annotation is hidden |
 | `targetUrl` | `string` | Only show for this manifest URL |
 | `targetPage` | `number` | Only show on this canvas index |
-| `popup` | `string \| HTMLElement` | Popup content on click |
-| `popupPosition` | `{ x, y }` | Popup offset in screen pixels |
+| `popup` | `string \| HTMLElement` | Popup content on click (independent div, not clipped by annotation) |
+| `popupPosition` | `{ x, y }` | Popup offset from annotation's top-right corner |
+| `popupScale` | `{ min, max }` | Clamp popup scale between bounds (e.g. `{ min: 0.5, max: 2 }`) |
 
 ## State
 
@@ -328,6 +329,9 @@ const viewer = await IIIFViewer.create(container, url, {
     annotations: { desktop: 'show', tablet: 'hide' },
     settings: { desktop: 'show-closed', mobile: 'hide' },
     manifest: 'show-closed',
+
+    // With dock position override
+    compare: { visibility: 'show', dock: 'top-left' },
   },
 });
 ```
@@ -351,6 +355,21 @@ Omitted breakpoints fall back to the next larger size: `mobile` falls back to `t
 | `'show-open'` | Alias for `'show'` |
 | `'hide'` | Panel hidden at this breakpoint |
 
+### Dock Positions
+
+Each panel can be assigned to a dock via the `dock` property in the config object:
+
+| Dock | Default Panels |
+|---|---|
+| `'top-left'` | Gesture |
+| `'top-right'` | Contents, Manifest, Annotations, Settings |
+| `'bottom-left'` | Pages, Map |
+| `'bottom-right'` | Compare |
+| `'top-center'` | — |
+| `'bottom-center'` | — |
+
+Panels can be combined with responsive visibility and dock: `{ desktop: 'show', mobile: 'hide', dock: 'top-left' }`.
+
 ## Minimap
 
 The Map panel provides a thumbnail overview of the current canvas with a draggable viewport rectangle for quick navigation.
@@ -370,11 +389,16 @@ The Map panel can be toggled at runtime from the Settings panel.
 // Enter comparison mode
 await viewer.enterCompareMode();
 
+// Add a URL to compare (enters compare mode automatically if needed)
+await viewer.addCompareUrl('https://example.org/iiif/manifest.json');
+
 // Exit
 viewer.exitCompareMode();
 ```
 
-Comparison mode creates synchronized side-by-side viewers. Configure via the Compare panel or programmatically.
+Comparison mode creates synchronized side-by-side viewers. Use the Compare panel UI to type in URLs, or call `addCompareUrl()` programmatically — it uses the same code path as the panel's "Load" button. If compare mode isn't active yet, it enters automatically.
+
+> **Note:** The `compare` panel must be enabled in your panels config (e.g. `panels: { compare: 'show' }`) for programmatic compare to work.
 
 ## Keyboard Shortcuts
 

@@ -91,9 +91,10 @@ export class IIIFViewer {
         options?: {
             id?: string; type?: string; color?: string;
             style?: Record<string, string | undefined>;
-            scaleWithZoom?: boolean; activeClass?: string; inactiveClass?: string;
+            scaleWithZoom?: boolean | { min: number; max: number }; activeClass?: string; inactiveClass?: string;
             popup?: string | HTMLElement;
             popupPosition?: { x: number; y: number };
+            popupScale?: { min: number; max: number };
         };
     }> = [];
     private hiddenAnnotationTypes: Set<string> = new Set();
@@ -1437,7 +1438,7 @@ export class IIIFViewer {
         worldY: number;
         worldWidth: number;
         worldHeight: number;
-        scaleWithZoom?: boolean;
+        scaleWithZoom?: boolean | { min: number; max: number };
     }): void {
         if (!this.overlayManager) {
             console.error('Overlay manager not initialized. Enable overlays in viewer options.');
@@ -1472,7 +1473,7 @@ export class IIIFViewer {
             type?: string;
             color?: string;
             style?: Record<string, string | undefined>;
-            scaleWithZoom?: boolean;
+            scaleWithZoom?: boolean | { min: number; max: number };
             activeClass?: string;
             inactiveClass?: string;
             /** When set, only replay on compare entries matching this manifest URL */
@@ -1481,8 +1482,10 @@ export class IIIFViewer {
             targetPage?: number;
             /** Popup content shown when the annotation is clicked */
             popup?: string | HTMLElement;
-            /** Popup position offset in screen pixels from the annotation's top-left corner */
+            /** Popup position offset in screen pixels from the annotation's top-right corner */
             popupPosition?: { x: number; y: number };
+            /** Clamp popup scale between bounds (e.g. { min: 0.5, max: 2 }) */
+            popupScale?: { min: number; max: number };
         }
     ): string | undefined {
         if (!this.annotationManager) {
@@ -1526,6 +1529,7 @@ export class IIIFViewer {
             inactiveClass: options?.inactiveClass,
             popup: options?.popup,
             popupPosition: options?.popupPosition,
+            popupScale: options?.popupScale,
         });
 
         this.ui.updateAnnotationPanel();
@@ -1722,6 +1726,18 @@ export class IIIFViewer {
     // ============================================================
     // COMPARISON MODE
     // ============================================================
+
+    /**
+     * Add a URL to compare mode (enters compare mode automatically if not already active).
+     * Behaves exactly like typing a URL in the compare panel and clicking Load.
+     * @param url  IIIF manifest or image service URL
+     */
+    async addCompareUrl(url: string): Promise<void> {
+        if (!this.comparisonController) {
+            await this.enterCompareMode();
+        }
+        this.comparisonController?.addEntry(url);
+    }
 
     /**
      * Enter comparison mode. Shows the canvas list panel alongside

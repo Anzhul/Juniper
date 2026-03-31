@@ -11,6 +11,11 @@ if (container) {
     const defaultManifest = 'https://iiif.harvardartmuseums.org/manifests/object/299843';
     const url = manifestUrl ?? defaultManifest;
 
+    // URLs to load in compare mode on startup (leave empty to skip)
+    const compareUrls = [
+        'https://iiif.harvardartmuseums.org/manifests/object/299845',
+    ];
+
     // Use the static factory for a simple one-liner setup,
     // or fall back to manual init when loading from a config URL.
     const viewerPromise = configParam
@@ -20,10 +25,10 @@ if (container) {
             await viewer.loadConfig(config);
             return viewer;
         })()
-        : IIIFViewer.create(container, url, { panels: { minimap: 'show', pages: 'hide', settings: 'show-closed' } });
+        : IIIFViewer.create(container, url, { panels: { minimap: 'show', pages: 'hide', compare: 'show', settings: 'show-closed' } });
 
     viewerPromise
-        .then((viewer) => {
+        .then(async (viewer) => {
             // Expose viewer globally for debugging/testing
             (window as any).viewer = viewer;
 
@@ -96,6 +101,11 @@ if (container) {
                 popup: popupContent,
                 popupPosition: { x: 28, y: 0 },
             });
+
+            // Auto-enter compare mode with specified URLs
+            for (const compareUrl of compareUrls) {
+                await viewer.addCompareUrl(compareUrl);
+            }
         })
         .catch((error) => console.error('Error loading:', error));
 }
