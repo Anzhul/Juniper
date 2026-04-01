@@ -1,6 +1,6 @@
 {
   "name": "juniper-iiif",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "High-performance IIIF viewer with WebGPU/WebGL rendering, annotations, and comparison mode",
   "author": "Anzhu <anzhul@umich.edu>",
   "license": "MIT",
