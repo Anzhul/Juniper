@@ -2,6 +2,30 @@ import { IIIFOverlayManager } from './iiif-overlay';
 import type { OverlayElement } from './iiif-overlay';
 import type { ParsedAnnotation, ParsedAnnotationPage, AnnotationBody } from '../iiif-parser';
 
+const TAP_DISTANCE_SQ = 100; // 10px movement threshold
+
+/** Detect touch taps (touchstart + touchend without significant movement) */
+function attachTouchTap(element: HTMLElement, handler: (e: TouchEvent) => void): void {
+    let startX = 0;
+    let startY = 0;
+    element.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        }
+    }, { passive: true });
+    element.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length === 1) {
+            const dx = e.changedTouches[0].clientX - startX;
+            const dy = e.changedTouches[0].clientY - startY;
+            if (dx * dx + dy * dy < TAP_DISTANCE_SQ) {
+                e.preventDefault();
+                handler(e);
+            }
+        }
+    });
+}
+
 // --- Motivation Color Map ---
 
 export const MOTIVATION_COLORS: Record<string, { border: string; bg: string }> = {
@@ -219,13 +243,12 @@ export class AnnotationManager {
     }
 
     /**
-     * Attach a click-toggled popup to an annotation element.
+     * Attach a click/tap-toggled popup to an annotation element.
      * The popup is an independent div in the overlay manager's popup layer —
      * never clipped or scaled by the annotation's own transform.
      */
     private attachPopup(overlayId: string, container: HTMLElement, content: string | HTMLElement, position?: { x: number; y: number }, popupScale?: { min: number; max: number }): void {
-        container.addEventListener('click', (e) => {
-            e.stopPropagation();
+        const togglePopup = () => {
             if (!this.overlayManager) return;
 
             if (this.overlayManager.hasPopup(overlayId)) {
@@ -238,6 +261,17 @@ export class AnnotationManager {
                     popupScale
                 );
             }
+        };
+
+        container.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePopup();
+        });
+
+        // Touch tap support: track start position and only toggle if finger didn't move
+        attachTouchTap(container, (e) => {
+            e.stopPropagation();
+            togglePopup();
         });
     }
 
@@ -589,9 +623,8 @@ export class AnnotationManager {
         container.appendChild(label);
         container.addEventListener('mouseenter', () => { label.style.display = 'block'; });
         container.addEventListener('mouseleave', () => { label.style.display = 'none'; });
-        // Touch: tap to toggle label visibility
-        container.addEventListener('touchend', (e) => {
-            e.preventDefault();
+        // Touch: tap to toggle label visibility (with movement threshold to avoid toggling on pan)
+        attachTouchTap(container, () => {
             label.style.display = label.style.display === 'none' ? 'block' : 'none';
         });
     }
